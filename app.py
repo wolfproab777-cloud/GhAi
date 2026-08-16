@@ -2,43 +2,25 @@ import os
 import random
 import string
 import logging
-from flask import Flask, send_from_directory, request, jsonify
+from flask import Flask, send_file, request, jsonify
 from flask_cors import CORS
 
-# Konfiguratsiya
-app = Flask(__name__, static_folder='static', static_url_path='/static')
+app = Flask(__name__)
 CORS(app)
 
-# Log sozlamalari
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Kalitlar (Render da Environment Variables dan o'qiladi)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 BOTFATHER_TOKEN = os.getenv("BOTFATHER_TOKEN") or TELEGRAM_BOT_TOKEN
 
-# Bot holati
-bot_status = {
-    "running": False,
-    "messages": []
-}
-
-# =======================
-# ROUTELAR
-# =======================
-
 @app.route('/')
 def index():
-    """Asosiy sahifa"""
+    """Asosiy sahifa - index.html ni ko'rsatadi"""
     try:
-        return send_from_directory('static', 'index.html')
+        return send_file('index.html')
     except Exception as e:
-        return f"❌ Xatolik: {str(e)}"
-
-@app.route('/static/<path:filename>')
-def serve_static(filename):
-    """Statik fayllar"""
-    return send_from_directory('static', filename)
+        return f"❌ Xatolik: index.html topilmadi! {str(e)}"
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -60,10 +42,6 @@ def chat():
 def health():
     """Sog'lik tekshiruvi"""
     return jsonify({"status": "ok", "message": "BotYarat ishlamoqda!"})
-
-# =======================
-# ASOSIY LOGIKA
-# =======================
 
 def process_message(message):
     """Xabarni qayta ishlash"""
@@ -88,7 +66,6 @@ Masalan:
                 if not username.endswith('_bot'):
                     return "❌ Username **`_bot`** bilan tugashi shart!"
                 
-                # Simulyatsiya - haqiqiy token yaratish
                 token = f"{random.randint(1000000000, 9999999999)}:{''.join(random.choices(string.ascii_letters + string.digits, k=35))}"
                 
                 return f"""✅ **Bot muvaffaqiyatli yaratildi!**
@@ -118,10 +95,6 @@ Masalan:
 ⚡ Gemini usulida ishlaydi!"""
     
     return "🤔 Tushunmadim.\n\n📌 **'bot yarat'** deb yozing, men sizga bot yasashda yordam beraman."
-
-# =======================
-# ISHGA TUSHIRISH
-# =======================
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
