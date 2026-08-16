@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BotYarat - AI Yordamchi</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f0f1a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        /* Login oynasi */
+        #loginContainer {
+            background: #1a1a2e;
+            padding: 50px 40px;
+            border-radius: 24px;
+            border: 1px solid #2a2a4a;
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+        }
+        
+        #loginContainer h1 {
+            color: #fff;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        #loginContainer p {
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .login-input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #loginContainer input {
+            flex: 1;
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            background: #12121f;
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+            transition: 0.3s;
+        }
+        
+        #loginContainer input:focus { border-color: #7c3aed; }
+        
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            background: #7c3aed;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+            white-space: nowrap;
+        }
+        
+        .btn:hover {
+            background: #6d28d9;
+            transform: scale(1.02);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #444;
+            color: #aaa;
+        }
+        
+        .btn-secondary:hover {
+            background: #222;
+            border-color: #7c3aed;
+            color: #fff;
+        }
+        
+        #loginError {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 12px;
+            display: none;
+        }
+        
+        /* Chat oynasi */
+        #chatContainer {
+            display: none;
+            width: 100%;
+            max-width: 900px;
+            height: 90vh;
+            background: #1a1a2e;
+            border-radius: 24px;
+            border: 1px solid #2a2a4a;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+        }
+        
+        .chat-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid #2a2a4a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-header h2 {
+            color: #fff;
+            font-size: 20px;
+        }
+        
+        .chat-header h2 span { color: #7c3aed; }
+        
+        .chat-header .badge {
+            background: #7c3aed22;
+            color: #a78bfa;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            border: 1px solid #7c3aed44;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: #12121f;
+        }
+        
+        .message {
+            max-width: 80%;
+            padding: 14px 20px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.6;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            background: #7c3aed;
+            color: #fff;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.bot {
+            background: #1e1e36;
+            color: #e0e0e0;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #2a2a4a;
+        }
+        
+        .message.bot .highlight { color: #a78bfa; font-weight: 600; }
+        .message.bot .code-block {
+            background: #0a0a14;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #4ade80;
+            border: 1px solid #2a2a4a;
+            word-break: break-all;
+        }
+        
+        .typing-indicator {
+            color: #666;
+            font-size: 13px;
+            padding: 8px 16px;
+            background: #1a1a2e;
+            border-radius: 12px;
+            display: inline-block;
+            align-self: flex-start;
+        }
+        
+        .typing-indicator span {
+            animation: dot 1.2s infinite;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes dot {
+            0%, 60%, 100% { opacity: 0; }
+            30% { opacity: 1; }
+        }
+        
+        .chat-input-area {
+            padding: 20px 30px;
+            border-top: 1px solid #2a2a4a;
+            display: flex;
+            gap: 12px;
+            background: #1a1a2e;
+        }
+        
+        .chat-input-area input {
+            flex: 1;
+            padding: 14px 20px;
+            border-radius: 14px;
+            border: 1px solid #333;
+            background: #12121f;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: 0.3s;
+        }
+        
+        .chat-input-area input:focus { border-color: #7c3aed; }
+        .chat-input-area input:disabled { opacity: 0.5; cursor: not-allowed; }
+        .chat-input-area .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #7c3aed55; border-radius: 10px; }
+        
+        @media (max-width: 600px) {
+            #loginContainer { padding: 30px 20px; }
+            .chat-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+            .chat-messages { padding: 16px; }
+            .message { max-width: 95%; font-size: 14px; padding: 12px 16px; }
+            .chat-input-area { padding: 16px; flex-wrap: wrap; }
+            .chat-input-area input { min-width: 100%; }
+            .login-input-group { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login -->
+    <div id="loginContainer">
+        <h1>🔐 Kirish</h1>
+        <p>Bot yaratish tizimiga xush kelibsiz</p>
+        <div class="login-input-group">
+            <input type="password" id="loginPassword" placeholder="Parolni kiriting...">
+            <button class="btn" onclick="login()">Kirish</button>
+        </div>
+        <div style="margin-top:16px;">
+            <button class="btn btn-secondary" onclick="showCodePrompt()">🔑 Kod olish</button>
+        </div>
+        <div id="loginError">❌ Noto'g'ri parol!</div>
+    </div>
+    
+    <!-- Chat -->
+    <div id="chatContainer">
+        <div class="chat-header">
+            <h2>🤖 <span>Bot</span>Yarat</h2>
+            <div class="badge">⚡ Gemini usulida</div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot">
+                👋 Salom! Men sizning <span class="highlight">BotYarat</span> yordamchingizman.<br>
+                Telegram botlarini yaratish va boshqarishga yordam beraman.<br><br>
+                <span style="color:#888;">✏️ Masalan: <span style="color:#a78bfa;">"Menga bot yaratib ber"</span></span>
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Xabaringizni yozing..." onkeydown="if(event.key==='Enter') sendMessage()">
+            <button class="btn" id="sendBtn" onclick="sendMessage()">Yuborish</button>
+        </div>
+    </div>
+
+    <script>
+        const CORRECT_PASSWORD = "ghpay10";
+        let state = { step: 'idle', botName: '', botUsername: '' };
+        
+        // Login
+        function login() {
+            const pass = document.getElementById('loginPassword').value;
+            const error = document.getElementById('loginError');
+            if (pass === CORRECT_PASSWORD) {
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('chatContainer').style.display = 'flex';
+                error.style.display = 'none';
+            } else {
+                error.style.display = 'block';
+                document.getElementById('loginPassword').value = '';
+            }
+        }
+        
+        document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') login();
+        });
+        
+        function showCodePrompt() {
+            const userPass = prompt("🔑 Kodni olish uchun parolingizni kiriting:");
+            if (userPass === CORRECT_PASSWORD) {
+                alert("✅ Sizning kodingiz: ghpay10\n\nBu parol orqali tizimga kirasiz.");
+            } else if (userPass !== null) {
+                alert("❌ Noto'g'ri parol!");
+            }
+        }
+        
+        // Chat
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            input.disabled = true;
+            sendBtn.disabled = true;
+            
+            addMessage(msg, 'user');
+            input.value = '';
+            
+            const typingId = showTyping();
+            
+            try {
+                const response = await getAIResponse(msg);
+                removeTyping(typingId);
+                addMessage(response, 'bot');
+            } catch (error) {
+                removeTyping(typingId);
+                addMessage("❌ Xatolik yuz berdi: " + error.message, 'bot');
+            }
+            
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+        }
+        
+        async function getAIResponse(message) {
+            // Backend ga so'rov yuborish
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                const data = await response.json();
+                return data.response || "❌ Javob olishda xatolik";
+            } catch (error) {
+                // Backend ishlamasa, lokal javob
+                return processLocalResponse(message);
+            }
+        }
+        
+        function processLocalResponse(message) {
+            const msg = message.toLowerCase().trim();
+            
+            if (msg.includes('bot yarat') || msg.includes('bot yasash')) {
+                return "🤖 Bot yaratish uchun quyidagi formatda yozing:\n\n`bot: NOM | USERNAME`\n\nMasalan: `bot: Mening Botim | mening_botim_bot`";
+            }
+            
+            if (msg.includes('bot:')) {
+                return "✅ Bot yaratish so'rovi qabul qilindi!\n\n🔗 Backend orqali haqiqiy bot yaratilmoqda...\n\n⚠️ Hozircha bu simulyatsiya. Backend ulanganda real bot yaratiladi.";
+            }
+            
+            if (msg.includes('salom') || msg.includes('assalom')) {
+                return "👋 Salom! Bot yaratishga yordam beraman.\n\n✏️ **'bot yarat'** deb yozing.";
+            }
+            
+            if (msg.includes('yordam') || msg.includes('help')) {
+                return "🤖 **BotYarat yordamchisi**\n\n📌 **Buyruqlar:**\n• `bot yarat` - yangi bot yaratish\n• `bot: NOM | USERNAME` - bot yaratish\n• `salom` - salomlashish\n• `yordam` - bu yordam";
+            }
+            
+            return "🤔 Tushunmadim.\n\n📌 **'bot yarat'** deb yozing, men sizga bot yasashda yordam beraman.";
+        }
+        
+        function addMessage(text, type) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.innerHTML = text.replace(/\n/g, '<br>');
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function showTyping() {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'typing-indicator';
+            div.id = 'typing_' + Date.now();
+            div.innerHTML = '⏳ <span>●</span> <span>●</span> <span>●</span>';
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div.id;
+        }
+        
+        function removeTyping(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+        
+        document.getElementById('chatInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        console.log('🚀 BotYarat sayti ishga tushdi!');
+        console.log('📌 Parol: ghpay10');
+    </script>
+</body>
+</html>
