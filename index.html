@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhAi - AI Yordamchi</title>
+    <title>BotYarat - AI Yordamchi</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -27,6 +27,7 @@
             width: 100%;
             text-align: center;
             box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            display: block;
         }
         
         #loginContainer h1 {
@@ -35,19 +36,16 @@
             margin-bottom: 10px;
         }
         
+        #loginContainer h1 span { color: #7c3aed; }
+        
         #loginContainer p {
             color: #888;
             margin-bottom: 30px;
             font-size: 14px;
         }
         
-        .login-input-group {
-            display: flex;
-            gap: 10px;
-        }
-        
         #loginContainer input {
-            flex: 1;
+            width: 100%;
             padding: 14px 18px;
             border-radius: 12px;
             border: 1px solid #333;
@@ -56,6 +54,7 @@
             font-size: 16px;
             outline: none;
             transition: 0.3s;
+            margin-bottom: 16px;
         }
         
         #loginContainer input:focus { border-color: #7c3aed; }
@@ -70,6 +69,8 @@
             cursor: pointer;
             transition: 0.3s;
             white-space: nowrap;
+            width: 100%;
+            font-size: 16px;
         }
         
         .btn:hover {
@@ -96,6 +97,21 @@
             display: none;
         }
         
+        #loginInfo {
+            color: #4ade80;
+            font-size: 13px;
+            margin-top: 12px;
+            display: none;
+        }
+        
+        .login-timer {
+            color: #888;
+            font-size: 12px;
+            margin-top: 20px;
+            border-top: 1px solid #2a2a4a;
+            padding-top: 20px;
+        }
+        
         /* Chat oynasi */
         #chatContainer {
             display: none;
@@ -116,6 +132,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         
         .chat-header h2 {
@@ -132,6 +150,28 @@
             border-radius: 20px;
             font-size: 12px;
             border: 1px solid #7c3aed44;
+        }
+        
+        .chat-header .header-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .chat-header .header-buttons button {
+            background: #7c3aed44;
+            border: 1px solid #7c3aed66;
+            color: #a78bfa;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.3s;
+        }
+        
+        .chat-header .header-buttons button:hover {
+            background: #7c3aed;
+            color: #fff;
         }
         
         .chat-messages {
@@ -237,43 +277,56 @@
         
         @media (max-width: 600px) {
             #loginContainer { padding: 30px 20px; }
-            .chat-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+            .chat-header { flex-direction: column; align-items: flex-start; }
             .chat-messages { padding: 16px; }
             .message { max-width: 95%; font-size: 14px; padding: 12px 16px; }
             .chat-input-area { padding: 16px; flex-wrap: wrap; }
             .chat-input-area input { min-width: 100%; }
             .login-input-group { flex-direction: column; }
+            .chat-header .header-buttons { width: 100%; justify-content: flex-start; }
         }
     </style>
 </head>
 <body>
-    <!-- Login -->
+    <!-- ================= LOGIN OYNA ================= -->
     <div id="loginContainer">
-        <h1>🔐 Kirish</h1>
-        <p>Bot yaratish tizimiga xush kelibsiz</p>
-        <div class="login-input-group">
-            <input type="password" id="loginPassword" placeholder="Parolni kiriting...">
-            <button class="btn" onclick="login()">Kirish</button>
-        </div>
-        <div style="margin-top:16px;">
+        <h1>🔐 <span>Bot</span>Yarat</h1>
+        <p>Kirish uchun parolingizni kiriting</p>
+        
+        <input type="password" id="loginPassword" placeholder="Parolni kiriting..." onkeydown="if(event.key==='Enter') login()">
+        <button class="btn" onclick="login()">Kirish</button>
+        
+        <div style="margin-top:12px;">
             <button class="btn btn-secondary" onclick="showCodePrompt()">🔑 Kod olish</button>
         </div>
+        
         <div id="loginError">❌ Noto'g'ri parol!</div>
+        <div id="loginInfo">✅ Kirish muvaffaqiyatli!</div>
+        
+        <div class="login-timer" id="loginTimer">⏳ Parol 24 soat davomida amal qiladi</div>
     </div>
     
-    <!-- Chat -->
+    <!-- ================= CHAT OYNA ================= -->
     <div id="chatContainer">
         <div class="chat-header">
-            <h2>🤖 <span>GhAi</span>Yordamchi</h2>
-            <div class="badge">⚡ Gemini usulida</div>
+            <h2>🤖 <span>Bot</span>Yarat</h2>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <span class="badge" id="sessionTimer">⏳ 24 soat qoldi</span>
+                <div class="header-buttons">
+                    <button onclick="refreshPassword()">🔄 Yangilash</button>
+                    <button onclick="logout()">🚪 Chiqish</button>
+                </div>
+            </div>
         </div>
+        
         <div class="chat-messages" id="chatMessages">
             <div class="message bot">
-                👋 Salom! Men sizning <span class="highlight">GhAi</span> yordamchingizman.<br>
+                👋 Salom! Men sizning <span class="highlight">BotYarat</span> yordamchingizman.<br>
                 Telegram botlarini yaratish va boshqarishga yordam beraman.<br><br>
                 <span style="color:#888;">✏️ Masalan: <span style="color:#a78bfa;">"Menga bot yaratib ber"</span></span>
             </div>
         </div>
+        
         <div class="chat-input-area">
             <input type="text" id="chatInput" placeholder="Xabaringizni yozing..." onkeydown="if(event.key==='Enter') sendMessage()">
             <button class="btn" id="sendBtn" onclick="sendMessage()">Yuborish</button>
@@ -281,26 +334,88 @@
     </div>
 
     <script>
+        // =======================
+        // KONFIGURATSIYA
+        // =======================
         const CORRECT_PASSWORD = "ghpay10";
-        let state = { step: 'idle', botName: '', botUsername: '' };
+        let user_id = 'unknown';
+        let target_id = null;
         
-        // Login
-        function login() {
-            const pass = document.getElementById('loginPassword').value;
-            const error = document.getElementById('loginError');
-            if (pass === CORRECT_PASSWORD) {
-                document.getElementById('loginContainer').style.display = 'none';
-                document.getElementById('chatContainer').style.display = 'flex';
-                error.style.display = 'none';
-            } else {
-                error.style.display = 'block';
-                document.getElementById('loginPassword').value = '';
+        // =======================
+        // SESSION TEKSHIRISH
+        // =======================
+        async function checkSession() {
+            try {
+                const response = await fetch('/api/check_session');
+                const data = await response.json();
+                
+                if (data.valid) {
+                    // Session valid - chatni ko'rsatish
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('chatContainer').style.display = 'flex';
+                    document.getElementById('sessionTimer').textContent = `⏳ ${data.expires_in} qoldi`;
+                    return true;
+                } else {
+                    // Session expired - login ni ko'rsatish
+                    document.getElementById('loginContainer').style.display = 'block';
+                    document.getElementById('chatContainer').style.display = 'none';
+                    return false;
+                }
+            } catch(e) {
+                console.log('Session tekshirishda xatolik:', e);
+                return false;
             }
         }
         
-        document.getElementById('loginPassword').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') login();
-        });
+        // =======================
+        // LOGIN FUNKSIYALARI
+        // =======================
+        async function login() {
+            const password = document.getElementById('loginPassword').value;
+            const error = document.getElementById('loginError');
+            const info = document.getElementById('loginInfo');
+            
+            error.style.display = 'none';
+            info.style.display = 'none';
+            
+            if (!password) {
+                error.textContent = '❌ Parolni kiriting!';
+                error.style.display = 'block';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    info.textContent = '✅ ' + data.message;
+                    info.style.display = 'block';
+                    
+                    if (data.new_password) {
+                        info.textContent += `\n🔑 Yangi parol: ${data.new_password}`;
+                    }
+                    
+                    setTimeout(() => {
+                        checkSession();
+                        document.getElementById('chatInput').focus();
+                    }, 1000);
+                } else {
+                    error.textContent = data.error || '❌ Noto\'g\'ri parol!';
+                    error.style.display = 'block';
+                    document.getElementById('loginPassword').value = '';
+                    document.getElementById('loginPassword').focus();
+                }
+            } catch(e) {
+                error.textContent = '❌ Server bilan bog\'lanishda xatolik!';
+                error.style.display = 'block';
+            }
+        }
         
         function showCodePrompt() {
             const userPass = prompt("🔑 Kodni olish uchun parolingizni kiriting:");
@@ -311,7 +426,9 @@
             }
         }
         
-        // Chat
+        // =======================
+        // CHAT FUNKSIYALARI
+        // =======================
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const sendBtn = document.getElementById('sendBtn');
@@ -329,7 +446,13 @@
             try {
                 const response = await getAIResponse(msg);
                 removeTyping(typingId);
-                addMessage(response, 'bot');
+                
+                if (response.need_login) {
+                    addMessage(response.response, 'bot');
+                    setTimeout(() => checkSession(), 2000);
+                } else {
+                    addMessage(response, 'bot');
+                }
             } catch (error) {
                 removeTyping(typingId);
                 addMessage("❌ Xatolik yuz berdi: " + error.message, 'bot');
@@ -341,43 +464,65 @@
         }
         
         async function getAIResponse(message) {
-            // Backend ga so'rov yuborish
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ 
+                        message: message,
+                        user_id: user_id
+                    })
                 });
                 const data = await response.json();
-                return data.response || "❌ Javob olishda xatolik";
+                return data;
             } catch (error) {
-                // Backend ishlamasa, lokal javob
-                return processLocalResponse(message);
+                return { response: "❌ Server bilan bog'lanishda xatolik!" };
             }
         }
         
-        function processLocalResponse(message) {
-            const msg = message.toLowerCase().trim();
+        // =======================
+        // PAROL YANGILASH
+        // =======================
+        async function refreshPassword() {
+            if (!confirm('⚠️ Parolni yangilashni xohlaysizmi?\n\nYangi parol bot orqali yuboriladi.')) return;
             
-            if (msg.includes('bot yarat') || msg.includes('bot yasash')) {
-                return "🤖 Bot yaratish uchun quyidagi formatda yozing:\n\n`bot: NOM | USERNAME`\n\nMasalan: `bot: Mening Botim | mening_botim_bot`";
+            try {
+                const response = await fetch('/api/refresh_password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: user_id })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Parol yangilandi!\n\n🔑 Yangi parol: ${data.new_password}\n\n📌 Bot orqali yuborildi!`);
+                } else {
+                    alert(data.error || '❌ Xatolik!');
+                }
+            } catch(e) {
+                alert('❌ Xatolik!');
             }
-            
-            if (msg.includes('bot:')) {
-                return "✅ Bot yaratish so'rovi qabul qilindi!\n\n🔗 Backend orqali haqiqiy bot yaratilmoqda...\n\n⚠️ Hozircha bu simulyatsiya. Backend ulanganda real bot yaratiladi.";
-            }
-            
-            if (msg.includes('salom') || msg.includes('assalom')) {
-                return "👋 Salom! Bot yaratishga yordam beraman.\n\n✏️ **'bot yarat'** deb yozing.";
-            }
-            
-            if (msg.includes('yordam') || msg.includes('help')) {
-                return "🤖 **BotYarat yordamchisi**\n\n📌 **Buyruqlar:**\n• `bot yarat` - yangi bot yaratish\n• `bot: NOM | USERNAME` - bot yaratish\n• `salom` - salomlashish\n• `yordam` - bu yordam";
-            }
-            
-            return "🤔 Tushunmadim.\n\n📌 **'bot yarat'** deb yozing, men sizga bot yasashda yordam beraman.";
         }
         
+        // =======================
+        // CHIQISH
+        // =======================
+        async function logout() {
+            if (!confirm('⚠️ Chiqishni xohlaysizmi?')) return;
+            
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                sessionStorage.clear();
+                checkSession();
+            } catch(e) {
+                console.log('Logout xatosi:', e);
+            }
+        }
+        
+        // =======================
+        // UI YORDAMCHI FUNKSIYALAR
+        // =======================
         function addMessage(text, type) {
             const container = document.getElementById('chatMessages');
             const div = document.createElement('div');
@@ -403,6 +548,18 @@
             if (el) el.remove();
         }
         
+        // =======================
+        // AUTOMATIK TEKSHIRISH
+        // =======================
+        // Har 60 soniyada session tekshirish
+        setInterval(checkSession, 60000);
+        
+        // Sayt yuklanganda session tekshirish
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSession();
+        });
+        
+        // Enter bilan yuborish
         document.getElementById('chatInput').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -410,8 +567,17 @@
             }
         });
         
+        // Login enter
+        document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                login();
+            }
+        });
+        
         console.log('🚀 BotYarat sayti ishga tushdi!');
         console.log('📌 Parol: ghpay10');
+        console.log('⏳ 24 soat davomida amal qiladi');
     </script>
 </body>
-</html>
+    </html>
