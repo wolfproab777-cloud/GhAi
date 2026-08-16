@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Kalitlar
 TELEGRAM_BOT_TOKEN = os.getenv("8290288100:AAHfb8lnFyMBXlv8mDrBoH-XPvNa-mH9LLE")  # Sizning bot tokeni
-BOTFATHER_TOKEN = os.getenv("BOTFATHER_TOKEN") or TELEGRAM_BOT_TOKEN
+BOTFATHER_TOKEN = os.getenv("8290288100:AAHfb8lnFyMBXlv8mDrBoH-XPvNa-mH9LLE") or TELEGRAM_BOT_TOKEN
 
 # Bot holati
 bot_status = {
