@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GhAi - AI Yordamchi</title>
-    <!-- Google reCAPTCHA -->
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <!-- Google reCAPTCHA v3 -->
+    <script src="https://www.google.com/recaptcha/api.js?render=6LfSKlotAAAAAAEgyfZ39Plh3ELwHiBCQkmxP387"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -78,12 +78,6 @@
             transform: scale(1.02);
         }
         
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
         .btn-secondary {
             background: transparent;
             border: 1px solid #444;
@@ -135,13 +129,6 @@
             min-width: 100px;
             font-size: 14px;
             padding: 12px 16px;
-        }
-        
-        .recaptcha-container {
-            margin: 12px 0;
-            display: flex;
-            justify-content: center;
-            min-height: 78px;
         }
         
         #chatContainer {
@@ -332,7 +319,6 @@
             .chat-input-area .btn { padding: 10px 16px; font-size: 13px; }
             .login-actions .btn { font-size: 13px; padding: 10px 12px; min-width: 80px; }
             #chatContainer { height: 95vh; max-height: none; border-radius: 16px; }
-            .recaptcha-container { transform: scale(0.85); }
         }
         
         @media (max-width: 400px) {
@@ -351,12 +337,7 @@
         
         <input type="password" id="loginPassword" placeholder="Parolni kiriting..." onkeydown="if(event.key==='Enter') login()" autocomplete="off">
         
-        <!-- reCAPTCHA -->
-        <div class="recaptcha-container">
-            <div class="g-recaptcha" data-sitekey="6LfSKlotAAAAAAEgyfZ39Plh3ELwHiBCQkmxP387" data-callback="onRecaptchaSuccess" data-expired-callback="onRecaptchaExpired"></div>
-        </div>
-        
-        <button class="btn" onclick="login()" id="loginBtn" disabled>Kirish</button>
+        <button class="btn" onclick="login()" id="loginBtn">Kirish</button>
         
         <div class="login-actions">
             <button class="btn btn-secondary" onclick="getCodeFromBot()">🔑 Parol olish</button>
@@ -404,23 +385,16 @@
         let user_id = 'unknown';
         let target_id = null;
         let autoLoginTimer = null;
-        let recaptchaVerified = false;
         
         // =======================
-        // RECAPTCHA
+        // RECAPTCHA V3
         // =======================
-        function onRecaptchaSuccess(token) {
-            recaptchaVerified = true;
-            document.getElementById('loginBtn').disabled = false;
-            document.getElementById('loginBtn').style.opacity = '1';
-            document.getElementById('loginBtn').style.cursor = 'pointer';
-        }
-        
-        function onRecaptchaExpired() {
-            recaptchaVerified = false;
-            document.getElementById('loginBtn').disabled = true;
-            document.getElementById('loginBtn').style.opacity = '0.5';
-            document.getElementById('loginBtn').style.cursor = 'not-allowed';
+        function getRecaptchaToken() {
+            return new Promise(function(resolve) {
+                grecaptcha.execute('6LfSKlotAAAAAAEgyfZ39Plh3ELwHiBCQkmxP387', {action: 'login'}).then(function(token) {
+                    resolve(token);
+                });
+            });
         }
         
         // =======================
@@ -440,11 +414,6 @@
                 } else {
                     document.getElementById('loginContainer').style.display = 'block';
                     document.getElementById('chatContainer').style.display = 'none';
-                    if (typeof grecaptcha !== 'undefined') {
-                        grecaptcha.reset();
-                    }
-                    recaptchaVerified = false;
-                    document.getElementById('loginBtn').disabled = true;
                     return false;
                 }
             } catch(e) {
@@ -493,18 +462,10 @@
                 return;
             }
             
-            if (!recaptchaVerified) {
-                error.textContent = '❌ Iltimos, "Men robot emasman" ni tasdiqlang!';
-                error.style.display = 'block';
-                return;
-            }
-            
-            let recaptchaToken = '';
-            if (typeof grecaptcha !== 'undefined') {
-                recaptchaToken = grecaptcha.getResponse();
-            }
-            
             try {
+                // reCAPTCHA v3 token olish
+                const recaptchaToken = await getRecaptchaToken();
+                
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -529,11 +490,6 @@
                     error.style.display = 'block';
                     document.getElementById('loginPassword').value = '';
                     document.getElementById('loginPassword').focus();
-                    if (typeof grecaptcha !== 'undefined') {
-                        grecaptcha.reset();
-                    }
-                    recaptchaVerified = false;
-                    document.getElementById('loginBtn').disabled = true;
                 }
             } catch(e) {
                 error.textContent = '❌ Server bilan bog\'lanishda xatolik!';
@@ -704,7 +660,7 @@
         console.log('🚀 GhAi sayti ishga tushdi!');
         console.log('📌 Parol: ghpay10');
         console.log('⏳ 24 soat davomida amal qiladi');
-        console.log('🔒 reCAPTCHA bilan himoyalangan');
+        console.log('🔒 reCAPTCHA v3 bilan himoyalangan');
     </script>
 </body>
 </html>
