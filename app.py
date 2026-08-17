@@ -13,6 +13,7 @@ from flask_cors import CORS
 from flask_session import Session
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
@@ -37,6 +38,7 @@ bot_running = False
 
 # Ma'lumotlar bazasi
 DATA_FILE = 'data.json'
+PASSWORD_FILE = 'password_data.json'
 
 # =======================
 # MA'LUMOTLAR BAZASI
@@ -52,13 +54,142 @@ def load_data():
             "messages": [],
             "payments": [],
             "sessions": {},
-            "password_history": [],
             "codes": {}
         }
 
 def save_data(data):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=2)
+
+def load_password_data():
+    """Parol ma'lumotlarini yuklash"""
+    try:
+        with open(PASSWORD_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {
+            "current_password": MASTER_PASSWORD,
+            "created_at": datetime.now().isoformat(),
+            "expires_at": (datetime.now() + timedelta(hours=24)).isoformat(),
+            "history": []
+        }
+
+def save_password_data(data):
+    with open(PASSWORD_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def get_current_password():
+    """Hozirgi amaldagi parolni olish"""
+    data = load_password_data()
+    expires_at = datetime.fromisoformat(data['expires_at'])
+    
+    # Agar parol muddati tugagan bo'lsa, yangi parol yaratish
+    if datetime.now() >= expires_at:
+        return rotate_password()
+    
+    return data['current_password']
+
+def rotate_password():
+    """Yangi parol yaratish (24 soatda bir marta)"""
+    # Yangi parol yaratish
+    new_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+    
+    # Eski parolni saqlash
+    password_data = load_password_data()
+    password_data['history'].append({
+        "password": password_data['current_password'],
+        "created_at": password_data['created_at'],
+        "expired_at": datetime.now().isoformat()
+    })
+    
+    # Yangi parolni o'rnatish
+    now = datetime.now()
+    password_data['current_password'] = new_password
+    password_data['created_at'] = now.isoformat()
+    password_data['expires_at'] = (now + timedelta(hours=24)).isoformat()
+    save_password_data(password_data)
+    
+    # Admin (siz) ga yangi parolni yuborish
+    send_password_to_admin(new_password)
+    
+    logger.info(f"🔄 Parol yangilandi: {new_password}")
+    
+    return new_password
+
+def check_password_expiry():
+    """Parol muddatini tekshirish va kerak bo'lsa yangilash"""
+    password_data = load_password_data()
+    expires_at = datetime.fromisoformat(password_data['expires_at'])
+    
+    if datetime.now() >= expires_at:
+        return rotate_password()
+    return password_data['current_password']
+
+# =======================
+# TELEGRAM FUNKSIYALARI
+# =======================
+
+def send_telegram_message(user_id, text):
+    try:
+        if not TELEGRAM_BOT_TOKEN:
+            return {"success": False, "error": "Bot tokeni topilmadi"}
+        
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": user_id,
+            "text": text,
+            "parse_mode": "HTML"
+        }
+        
+        response = requests.post(url, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            return {"success": True}
+        else:
+            return {"success": False, "error": f"Xatolik: {response.status_code}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def send_password_to_admin(password):
+    """Yangi parolni faqat admin (siz) ga yuborish"""
+    try:
+        if not TELEGRAM_BOT_TOKEN or not ADMIN_USER_ID:
+            logger.warning("Admin ID topilmadi")
+            return {"success": False, "error": "Admin ID topilmadi"}
+        
+        message = f"""🔐 **Yangi parol yaratildi!**
+
+🔑 Parol: <code>{password}</code>
+📅 Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏳ Amal qilish: 24 soat
+
+📌 Bu parol faqat sizga yuborildi.
+Foydalanuvchilar "Parol olish" tugmasi orqali o'zlariga olishlari mumkin."""
+
+        return send_telegram_message(ADMIN_USER_ID, message)
+        
+    except Exception as e:
+        logger.error(f"Admin xatosi: {e}")
+        return {"success": False, "error": str(e)}
+
+def send_password_to_user(user_id, password):
+    """Parolni faqat bir foydalanuvchiga yuborish"""
+    try:
+        if not TELEGRAM_BOT_TOKEN:
+            return {"success": False, "error": "Bot tokeni topilmadi"}
+        
+        message = f"""🔑 **Sizning parolingiz!**
+
+🔐 Parol: <code>{password}</code>
+⏳ Amal qilish: 24 soat
+
+📌 Saytga kirish uchun ushbu paroldan foydalaning."""
+
+        return send_telegram_message(user_id, message)
+        
+    except Exception as e:
+        logger.error(f"Foydalanuvchiga yuborish xatosi: {e}")
+        return {"success": False, "error": str(e)}
 
 # =======================
 # SESSION FUNKSIYALARI
@@ -95,52 +226,20 @@ def get_session_expiry():
     return "Tugagan"
 
 # =======================
-# TELEGRAM FUNKSIYALARI
-# =======================
-
-def send_telegram_message(user_id, text):
-    try:
-        if not TELEGRAM_BOT_TOKEN:
-            return {"success": False, "error": "Bot tokeni topilmadi"}
-        
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": user_id,
-            "text": text,
-            "parse_mode": "HTML"
-        }
-        
-        response = requests.post(url, json=payload, timeout=10)
-        
-        if response.status_code == 200:
-            return {"success": True}
-        else:
-            return {"success": False, "error": f"Xatolik: {response.status_code}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-def generate_new_password():
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-
-def generate_code():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-
-def create_payment_link(user_id, amount):
-    payment_id = f"PAY_{user_id}_{int(datetime.now().timestamp())}"
-    return f"https://my.click.uz/pay?merchant_id=YOUR_MERCHANT_ID&amount={amount}&transaction_id={payment_id}"
-
-# =======================
 # FLASK ROUTELAR
 # =======================
 
 @app.route('/')
 def index():
     try:
+        # Parol muddatini tekshirish
+        check_password_expiry()
+        
         if is_session_valid():
             return send_file('index.html')
         else:
             session.clear()
-            return send_file('index.html')  # login qismi index.html ichida
+            return send_file('index.html')
     except Exception as e:
         return f"❌ Xatolik: {str(e)}"
 
@@ -163,32 +262,15 @@ def login():
         data = request.json
         password = data.get('password', '')
         
-        if password == MASTER_PASSWORD:
+        # Hozirgi amaldagi parolni olish
+        current_password = get_current_password()
+        
+        if password == current_password:
             create_session()
-            
-            new_password = generate_new_password()
-            
-            db = load_data()
-            db['password_history'].append({
-                "password": new_password,
-                "created_at": datetime.now().isoformat(),
-                "updated_by": "user_login"
-            })
-            save_data(db)
-            
-            if TELEGRAM_BOT_TOKEN and ADMIN_USER_ID:
-                send_telegram_message(
-                    ADMIN_USER_ID,
-                    f"🔐 **Yangi parol yaratildi!**\n\n"
-                    f"📌 Parol: `{new_password}`\n"
-                    f"📅 Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    f"⏳ Amal qilish vaqti: 24 soat"
-                )
             
             return jsonify({
                 "success": True,
                 "message": "✅ Kirish muvaffaqiyatli!",
-                "new_password": new_password,
                 "expires_in": "24 soat"
             })
         else:
@@ -199,40 +281,56 @@ def login():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
-@app.route('/api/logout', methods=['POST'])
-def logout():
-    session.clear()
-    return jsonify({"success": True, "message": "Chiqildi"})
-
-@app.route('/api/refresh_password', methods=['POST'])
-def refresh_password():
+@app.route('/api/request_password', methods=['POST'])
+def request_password():
+    """Foydalanuvchi o'ziga parol so'rash"""
     try:
         data = request.json
         user_id = data.get('user_id', '')
         
-        new_password = generate_new_password()
+        if not user_id:
+            return jsonify({"success": False, "error": "ID kerak"})
         
-        db = load_data()
-        db['password_history'].append({
-            "password": new_password,
-            "created_at": datetime.now().isoformat(),
-            "updated_by": user_id or "admin"
-        })
-        save_data(db)
+        # Hozirgi parolni olish
+        current_password = get_current_password()
         
-        if TELEGRAM_BOT_TOKEN and ADMIN_USER_ID:
-            send_telegram_message(
-                ADMIN_USER_ID,
-                f"🔄 **Parol yangilandi!**\n\n"
-                f"🔑 Yangi parol: `{new_password}`\n"
-                f"📅 Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"⏳ Amal qilish: 24 soat"
-            )
+        # Foydalanuvchiga parolni yuborish
+        result = send_password_to_user(user_id, current_password)
+        
+        if result['success']:
+            return jsonify({
+                "success": True,
+                "message": "✅ Parol Telegram bot orqali yuborildi!"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": result.get('error', 'Parol yuborishda xatolik')
+            })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/refresh_password', methods=['POST'])
+def refresh_password():
+    """Parolni qo'lda yangilash (faqat admin)"""
+    try:
+        data = request.json
+        user_id = data.get('user_id', '')
+        
+        # Faqat admin yangilay oladi
+        if user_id != ADMIN_USER_ID:
+            return jsonify({
+                "success": False,
+                "error": "❌ Ruxsat yo'q! Faqat admin yangilay oladi."
+            })
+        
+        # Yangi parol yaratish
+        new_password = rotate_password()
         
         return jsonify({
             "success": True,
             "new_password": new_password,
-            "message": "✅ Parol yangilandi va botga yuborildi!"
+            "message": "✅ Parol yangilandi va admin ga yuborildi!"
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
@@ -259,152 +357,10 @@ def chat():
         logger.error(f"Chat xatosi: {e}")
         return jsonify({"response": f"❌ Xatolik: {str(e)}"})
 
-@app.route('/api/send_message', methods=['POST'])
-def send_message_api():
-    try:
-        data = request.json
-        target_id = data.get('target_id')
-        text = data.get('text')
-        sender_id = data.get('sender_id', 'unknown')
-        
-        if not target_id or not text:
-            return jsonify({"success": False, "error": "ID va xabar kerak"})
-        
-        result = send_telegram_message(target_id, text)
-        
-        if result['success']:
-            db = load_data()
-            db['messages'].append({
-                "from": sender_id,
-                "to": target_id,
-                "text": text,
-                "time": datetime.now().isoformat()
-            })
-            save_data(db)
-            
-            return jsonify({
-                "success": True,
-                "message": f"✅ Xabar @{target_id} ga yuborildi!"
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "error": result.get('error', 'Xabar yuborishda xatolik')
-            })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/get_code', methods=['POST'])
-def get_code():
-    try:
-        data = request.json
-        user_id = data.get('user_id')
-        
-        if not user_id:
-            return jsonify({"success": False, "error": "ID kerak"})
-        
-        payment_link = create_payment_link(user_id, 15000)
-        
-        return jsonify({
-            "success": True,
-            "message": "🔑 Parol olish uchun 15 000 so'm to'lang",
-            "payment_link": payment_link,
-            "amount": 15000
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/payment_callback', methods=['POST'])
-def payment_callback():
-    try:
-        data = request.json
-        user_id = data.get('user_id')
-        status = data.get('status')
-        transaction_id = data.get('transaction_id')
-        
-        if status == 'success':
-            code = generate_code()
-            
-            db = load_data()
-            db['codes'][code] = {
-                "user_id": user_id,
-                "used": False,
-                "created": datetime.now().isoformat()
-            }
-            db['payments'].append({
-                "user_id": user_id,
-                "amount": 15000,
-                "transaction_id": transaction_id,
-                "time": datetime.now().isoformat(),
-                "status": "success"
-            })
-            save_data(db)
-            
-            send_telegram_message(user_id, f"🔑 Sizning parolingiz: {code}")
-            
-            return jsonify({
-                "success": True,
-                "code": code,
-                "message": "✅ To'lov qabul qilindi! Parolingiz yuborildi."
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "message": "❌ To'lov bekor qilindi"
-            })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/get_profile', methods=['POST'])
-def get_profile():
-    try:
-        data = request.json
-        user_id = data.get('user_id')
-        
-        if not user_id:
-            return jsonify({"success": False, "error": "ID kerak"})
-        
-        db = load_data()
-        user = db['users'].get(user_id, {})
-        
-        return jsonify({
-            "success": True,
-            "profile": {
-                "id": user_id,
-                "name": user.get('name', 'Noma\'lum'),
-                "phone": user.get('phone', 'Noma\'lum'),
-                "balance": user.get('balance', 0),
-                "payments": [p for p in db['payments'] if p['user_id'] == user_id]
-            }
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/verify_token', methods=['POST'])
-def verify_token():
-    try:
-        data = request.json
-        token = data.get('token', '').strip()
-        
-        if not token or ':' not in token:
-            return jsonify({"success": False, "error": "Noto'g'ri token formati"})
-        
-        url = f"https://api.telegram.org/bot{token}/getMe"
-        response = requests.get(url, timeout=5)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('ok'):
-                bot_info = data.get('result', {})
-                return jsonify({
-                    "success": True,
-                    "name": bot_info.get('first_name', 'Noma\'lum'),
-                    "username": bot_info.get('username', 'Noma\'lum')
-                })
-        
-        return jsonify({"success": False, "error": "Token noto'g'ri yoki bot faol emas!"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return jsonify({"success": True, "message": "Chiqildi"})
 
 # =======================
 # ASOSIY LOGIKA
@@ -413,6 +369,16 @@ def verify_token():
 def process_message(message, user_id='unknown'):
     msg = message.lower().strip()
     
+    # Parol olish (chatda)
+    if 'parol' in msg or 'password' in msg:
+        current_password = get_current_password()
+        result = send_password_to_user(user_id, current_password)
+        
+        if result['success']:
+            return "🔑 **Parol Telegram bot orqali yuborildi!**\n\n📌 Telegramni tekshiring."
+        else:
+            return f"❌ Xatolik: {result.get('error', 'Noma\'lum xato')}"
+    
     # Yozish
     if msg == 'yoz' or msg == 'yozish':
         return """✍️ **Xabar yozish**
@@ -420,15 +386,12 @@ def process_message(message, user_id='unknown'):
 📌 Kimga xabar yozmoqchisiz?
 Telegram ID sini yozing:
 
-`id: 123456789`
-
-Yoki username:
-`@username`"""
+`id: 123456789`"""
     
-    if msg.startswith('id:') or msg.startswith('@'):
+    if msg.startswith('id:'):
         global target_id
         try:
-            target_id = msg.replace('id:', '').replace('@', '').strip()
+            target_id = msg.replace('id:', '').strip()
             return f"""📝 **{target_id} ga xabar yozish**
 
 ✏️ Xabar matnini yozing:
@@ -450,19 +413,6 @@ Yoki username:
                 return "❌ Avval ID ni tanlang! `id: 123456789`"
         except:
             return "❌ Xatolik!"
-    
-    # Parol olish
-    if 'parol olish' in msg or 'kalit olish' in msg:
-        return """🔑 **Parol olish**
-
-💰 Narxi: <b>15 000 so'm</b>
-
-📌 To'lov qilish uchun:
-1. Quyidagi tugmani bosing
-2. To'lovni amalga oshiring
-3. Parolingizni oling
-
-<a href="/api/get_code">💳 To'lov qilish</a>"""
     
     # Bot yaratish
     if 'bot yarat' in msg or 'bot yasash' in msg:
@@ -490,21 +440,9 @@ Yoki username:
         except:
             return "❌ Xatolik!"
     
-    # Profil
-    if 'profil' in msg or 'profile' in msg:
-        db = load_data()
-        user = db['users'].get(user_id, {})
-        return f"""👤 **Sizning profilingiz**
-
-🆔 ID: {user_id}
-📛 Ism: {user.get('name', 'Noma\'lum')}
-📱 Telefon: {user.get('phone', 'Noma\'lum')}
-💰 Balans: {user.get('balance', 0)} so'm
-📨 Xabarlar: {len(db['messages'])}"""
-    
     # Salom
     if 'salom' in msg or 'assalom' in msg:
-        return "👋 Salom! Bot yaratish va xabar yuborishga yordam beraman.\n\n📌 **Buyruqlar:**\n• `yoz` - xabar yozish\n• `parol olish` - kalit olish\n• `bot yarat` - bot yaratish\n• `profil` - profilingiz"
+        return "👋 Salom! Bot yaratish va xabar yuborishga yordam beraman.\n\n📌 **Buyruqlar:**\n• `yoz` - xabar yozish\n• `parol` - parol olish\n• `bot yarat` - bot yaratish"
     
     # Yordam
     if 'yordam' in msg or 'help' in msg:
@@ -512,9 +450,8 @@ Yoki username:
 
 📌 **Buyruqlar:**
 • `yoz` - boshqa odamga xabar yozish
-• `parol olish` - kalit olish (15 000 so'm)
+• `parol` - parol olish
 • `bot yarat` - bot yaratish
-• `profil` - profilingiz
 • `salom` - salomlashish
 • `yordam` - bu yordam
 
@@ -543,9 +480,8 @@ async def telegram_start(update: Update, context):
         "👋 Salom! Men BotYarat yordamchisiman!\n\n"
         "📌 **Buyruqlar:**\n"
         "• `yoz` - boshqa odamga xabar yozish\n"
-        "• `parol olish` - kalit olish (15 000 so'm)\n"
+        "• `parol` - parol olish\n"
         "• `bot yarat` - bot yaratish\n"
-        "• `profil` - profilingiz\n"
         "• `yordam` - yordam",
         parse_mode='HTML'
     )
@@ -597,6 +533,9 @@ def start_telegram_bot():
 # =======================
 
 if __name__ == '__main__':
+    # Dastlabki parolni yaratish
+    check_password_expiry()
+    
     start_telegram_bot()
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
