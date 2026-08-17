@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GhAi - AI Yordamchi</title>
+    <!-- Google reCAPTCHA -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -76,6 +78,12 @@
             transform: scale(1.02);
         }
         
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         .btn-secondary {
             background: transparent;
             border: 1px solid #444;
@@ -127,6 +135,13 @@
             min-width: 100px;
             font-size: 14px;
             padding: 12px 16px;
+        }
+        
+        .recaptcha-container {
+            margin: 12px 0;
+            display: flex;
+            justify-content: center;
+            min-height: 78px;
         }
         
         #chatContainer {
@@ -317,6 +332,7 @@
             .chat-input-area .btn { padding: 10px 16px; font-size: 13px; }
             .login-actions .btn { font-size: 13px; padding: 10px 12px; min-width: 80px; }
             #chatContainer { height: 95vh; max-height: none; border-radius: 16px; }
+            .recaptcha-container { transform: scale(0.85); }
         }
         
         @media (max-width: 400px) {
@@ -328,13 +344,19 @@
     </style>
 </head>
 <body>
+    <!-- LOGIN -->
     <div id="loginContainer">
         <h1>🔐 <span>Gh</span>Ai</h1>
         <p class="subtitle">Kirish uchun parolingizni kiriting</p>
         
         <input type="password" id="loginPassword" placeholder="Parolni kiriting..." onkeydown="if(event.key==='Enter') login()" autocomplete="off">
         
-        <button class="btn" onclick="login()" id="loginBtn">Kirish</button>
+        <!-- reCAPTCHA -->
+        <div class="recaptcha-container">
+            <div class="g-recaptcha" data-sitekey="6LeIxAcTAAAAAGcVZzXxXxXxXxXxXxXxXx" data-callback="onRecaptchaSuccess" data-expired-callback="onRecaptchaExpired"></div>
+        </div>
+        
+        <button class="btn" onclick="login()" id="loginBtn" disabled>Kirish</button>
         
         <div class="login-actions">
             <button class="btn btn-secondary" onclick="getCodeFromBot()">🔑 Parol olish</button>
@@ -348,6 +370,7 @@
         </div>
     </div>
     
+    <!-- CHAT -->
     <div id="chatContainer">
         <div class="chat-header">
             <h2>🤖 <span>Gh</span>Ai</h2>
@@ -375,10 +398,34 @@
     </div>
 
     <script>
+        // =======================
+        // O'ZGARUVCHILAR
+        // =======================
         let user_id = 'unknown';
         let target_id = null;
         let autoLoginTimer = null;
+        let recaptchaVerified = false;
         
+        // =======================
+        // RECAPTCHA
+        // =======================
+        function onRecaptchaSuccess(token) {
+            recaptchaVerified = true;
+            document.getElementById('loginBtn').disabled = false;
+            document.getElementById('loginBtn').style.opacity = '1';
+            document.getElementById('loginBtn').style.cursor = 'pointer';
+        }
+        
+        function onRecaptchaExpired() {
+            recaptchaVerified = false;
+            document.getElementById('loginBtn').disabled = true;
+            document.getElementById('loginBtn').style.opacity = '0.5';
+            document.getElementById('loginBtn').style.cursor = 'not-allowed';
+        }
+        
+        // =======================
+        // SESSION TEKSHIRISH
+        // =======================
         async function checkSession() {
             try {
                 const response = await fetch('/api/check_session');
@@ -387,12 +434,18 @@
                 if (data.valid) {
                     document.getElementById('loginContainer').style.display = 'none';
                     document.getElementById('chatContainer').style.display = 'flex';
-                    document.getElementById('sessionTimer').textContent = `⏳ ${data.expires_in} qoldi`;
+                    document.getElementById('sessionTimer').textContent = '⏳ ' + data.expires_in + ' qoldi';
                     document.getElementById('loginTimer').textContent = data.expires_in;
                     return true;
                 } else {
                     document.getElementById('loginContainer').style.display = 'block';
                     document.getElementById('chatContainer').style.display = 'none';
+                    // reCAPTCHA ni reset qilish
+                    if (typeof grecaptcha !== 'undefined') {
+                        grecaptcha.reset();
+                    }
+                    recaptchaVerified = false;
+                    document.getElementById('loginBtn').disabled = true;
                     return false;
                 }
             } catch(e) {
@@ -401,6 +454,9 @@
             }
         }
         
+        // =======================
+        // PAROL OLISH (Telegram botga xabar)
+        // =======================
         async function getCodeFromBot() {
             try {
                 const response = await fetch('/api/request_password', {
@@ -421,6 +477,9 @@
             }
         }
         
+        // =======================
+        // LOGIN
+        // =======================
         async function login() {
             const password = document.getElementById('loginPassword').value;
             const error = document.getElementById('loginError');
@@ -435,11 +494,26 @@
                 return;
             }
             
+            if (!recaptchaVerified) {
+                error.textContent = '❌ Iltimos, "Men robot emasman" ni tasdiqlang!';
+                error.style.display = 'block';
+                return;
+            }
+            
+            // reCAPTCHA tokenini olish
+            let recaptchaToken = '';
+            if (typeof grecaptcha !== 'undefined') {
+                recaptchaToken = grecaptcha.getResponse();
+            }
+            
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: password })
+                    body: JSON.stringify({ 
+                        password: password,
+                        recaptcha: recaptchaToken
+                    })
                 });
                 
                 const data = await response.json();
@@ -448,7 +522,7 @@
                     info.textContent = '✅ ' + data.message;
                     info.style.display = 'block';
                     
-                    setTimeout(() => {
+                    setTimeout(function() {
                         checkSession();
                         document.getElementById('chatInput').focus();
                     }, 1000);
@@ -457,6 +531,12 @@
                     error.style.display = 'block';
                     document.getElementById('loginPassword').value = '';
                     document.getElementById('loginPassword').focus();
+                    // reCAPTCHA ni reset qilish
+                    if (typeof grecaptcha !== 'undefined') {
+                        grecaptcha.reset();
+                    }
+                    recaptchaVerified = false;
+                    document.getElementById('loginBtn').disabled = true;
                 }
             } catch(e) {
                 error.textContent = '❌ Server bilan bog\'lanishda xatolik!';
@@ -464,6 +544,9 @@
             }
         }
         
+        // =======================
+        // XABAR YUBORISH
+        // =======================
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const sendBtn = document.getElementById('sendBtn');
@@ -485,20 +568,20 @@
                 if (typeof result === 'object' && result !== null) {
                     if (result.need_login) {
                         addMessage(result.response, 'bot');
-                        setTimeout(() => checkSession(), 2000);
+                        setTimeout(function() { checkSession(); }, 2000);
                     } else if (result.response) {
                         addMessage(result.response, 'bot');
                     } else {
-                        addMessage("❌ Javob olishda xatolik", 'bot');
+                        addMessage('❌ Javob olishda xatolik', 'bot');
                     }
                 } else if (typeof result === 'string') {
                     addMessage(result, 'bot');
                 } else {
-                    addMessage("❌ Javob olishda xatolik", 'bot');
+                    addMessage('❌ Javob olishda xatolik', 'bot');
                 }
             } catch (error) {
                 removeTyping(typingId);
-                addMessage("❌ Xatolik yuz berdi: " + error.message, 'bot');
+                addMessage('❌ Xatolik yuz berdi: ' + error.message, 'bot');
             }
             
             input.disabled = false;
@@ -511,5 +594,122 @@
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: message,
+                        user_id: user_id
+                    })
+                });
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                return { response: '❌ Server bilan bog\'lanishda xatolik!' };
+            }
+        }
+        
+        // =======================
+        // PAROL YANGILASH
+        // =======================
+        async function refreshPassword() {
+            if (!confirm('⚠️ Parolni yangilashni xohlaysizmi?\n\nYangi parol bot orqali yuboriladi.')) return;
+            
+            try {
+                const response = await fetch('/api/refresh_password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: user_id })
+                });
                 
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Parol yangilandi!\n\n🔑 Yangi parol: ' + data.new_password + '\n\n📌 Bot orqali yuborildi!');
+                } else {
+                    alert(data.error || '❌ Xatolik!');
+                }
+            } catch(e) {
+                alert('❌ Xatolik!');
+            }
+        }
+        
+        // =======================
+        // CHIQISH
+        // =======================
+        async function logout() {
+            if (!confirm('⚠️ Chiqishni xohlaysizmi?')) return;
+            
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                sessionStorage.clear();
+                if (autoLoginTimer) clearTimeout(autoLoginTimer);
+                checkSession();
+            } catch(e) {
+                console.log('Logout xatosi:', e);
+            }
+        }
+        
+        // =======================
+        // UI YORDAMCHI FUNKSIYALAR
+        // =======================
+        function addMessage(text, type) {
+            var container = document.getElementById('chatMessages');
+            var div = document.createElement('div');
+            div.className = 'message ' + type;
+            
+            if (typeof text === 'string') {
+                div.innerHTML = text.replace(/\n/g, '<br>');
+            } else {
+                div.innerHTML = String(text);
+            }
+            
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function showTyping() {
+            var container = document.getElementById('chatMessages');
+            var div = document.createElement('div');
+            div.className = 'typing-indicator';
+            div.id = 'typing_' + Date.now();
+            div.innerHTML = '⏳ <span>●</span> <span>●</span> <span>●</span>';
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div.id;
+        }
+        
+        function removeTyping(id) {
+            var el = document.getElementById(id);
+            if (el) el.remove();
+        }
+        
+        // =======================
+        // EVENTLAR
+        // =======================
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSession();
+        });
+        
+        document.getElementById('chatInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                login();
+            }
+        });
+        
+        // Har 60 soniyada session tekshirish
+        setInterval(checkSession, 60000);
+        
+        console.log('🚀 GhAi sayti ishga tushdi!');
+        console.log('📌 Parol: ghpay10');
+        console.log('⏳ 24 soat davomida amal qiladi');
+        console.log('🔒 reCAPTCHA bilan himoyalangan');
+    </script>
+</body>
+</html>
                 
