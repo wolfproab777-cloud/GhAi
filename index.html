@@ -353,7 +353,7 @@
         
         <!-- reCAPTCHA -->
         <div class="recaptcha-container">
-            <div class="g-recaptcha" data-sitekey="6LfSKIotAAAAAAEgyfZ39PIh3ELwHiBCQkmxP387" data-callback="onRecaptchaSuccess" data-expired-callback="onRecaptchaExpired"></div>
+            <div class="g-recaptcha" data-sitekey="6LfSKlotAAAAAAEgyfZ39Plh3ELwHiBCQkmxP387" data-callback="onRecaptchaSuccess" data-expired-callback="onRecaptchaExpired"></div>
         </div>
         
         <button class="btn" onclick="login()" id="loginBtn" disabled>Kirish</button>
@@ -440,7 +440,6 @@
                 } else {
                     document.getElementById('loginContainer').style.display = 'block';
                     document.getElementById('chatContainer').style.display = 'none';
-                    // reCAPTCHA ni reset qilish
                     if (typeof grecaptcha !== 'undefined') {
                         grecaptcha.reset();
                     }
@@ -455,7 +454,7 @@
         }
         
         // =======================
-        // PAROL OLISH (Telegram botga xabar)
+        // PAROL OLISH
         // =======================
         async function getCodeFromBot() {
             try {
@@ -500,7 +499,6 @@
                 return;
             }
             
-            // reCAPTCHA tokenini olish
             let recaptchaToken = '';
             if (typeof grecaptcha !== 'undefined') {
                 recaptchaToken = grecaptcha.getResponse();
@@ -531,7 +529,6 @@
                     error.style.display = 'block';
                     document.getElementById('loginPassword').value = '';
                     document.getElementById('loginPassword').focus();
-                    // reCAPTCHA ni reset qilish
                     if (typeof grecaptcha !== 'undefined') {
                         grecaptcha.reset();
                     }
@@ -702,7 +699,6 @@
             }
         });
         
-        // Har 60 soniyada session tekshirish
         setInterval(checkSession, 60000);
         
         console.log('🚀 GhAi sayti ishga tushdi!');
