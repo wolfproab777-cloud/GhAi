@@ -117,14 +117,13 @@ def check_password_expiry():
 # =======================
 
 def verify_recaptcha(recaptcha_response):
-    """reCAPTCHA ni tekshirish"""
+    """reCAPTCHA v3 ni tekshirish"""
     try:
         if not recaptcha_response:
             return False
         
+        RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY")
         if not RECAPTCHA_SECRET_KEY:
-            # Agar Secret Key bo'lmasa, tekshirmasdan o'tkaz
-            logger.warning("⚠️ RECAPTCHA_SECRET_KEY topilmadi!")
             return True
         
         url = "https://www.google.com/recaptcha/api/siteverify"
@@ -136,7 +135,11 @@ def verify_recaptcha(recaptcha_response):
         response = requests.post(url, data=data, timeout=5)
         result = response.json()
         
-        return result.get('success', False)
+        # v3 da score ni tekshirish (0.5 dan yuqori bo'lsa yaxshi)
+        if result.get('success') and result.get('score', 0) >= 0.5:
+            return True
+        
+        return False
     except Exception as e:
         logger.error(f"reCAPTCHA xatosi: {e}")
         return False
