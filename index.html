@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BotYarat - AI Yordamchi</title>
+    <title>GhAi - Yordamchi</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -333,251 +333,261 @@
         </div>
     </div>
 
-    <script>
-        // =======================
-        // KONFIGURATSIYA
-        // =======================
-        const CORRECT_PASSWORD = "ghpay10";
-        let user_id = 'unknown';
-        let target_id = null;
-        
-        // =======================
-        // SESSION TEKSHIRISH
-        // =======================
-        async function checkSession() {
-            try {
-                const response = await fetch('/api/check_session');
-                const data = await response.json();
-                
-                if (data.valid) {
-                    // Session valid - chatni ko'rsatish
-                    document.getElementById('loginContainer').style.display = 'none';
-                    document.getElementById('chatContainer').style.display = 'flex';
-                    document.getElementById('sessionTimer').textContent = `⏳ ${data.expires_in} qoldi`;
-                    return true;
-                } else {
-                    // Session expired - login ni ko'rsatish
-                    document.getElementById('loginContainer').style.display = 'block';
-                    document.getElementById('chatContainer').style.display = 'none';
-                    return false;
-                }
-            } catch(e) {
-                console.log('Session tekshirishda xatolik:', e);
+   <script>
+    // =======================
+    // KONFIGURATSIYA
+    // =======================
+    const CORRECT_PASSWORD = "ghpay10";
+    let user_id = 'unknown';
+    let target_id = null;
+    
+    // =======================
+    // SESSION TEKSHIRISH
+    // =======================
+    async function checkSession() {
+        try {
+            const response = await fetch('/api/check_session');
+            const data = await response.json();
+            
+            if (data.valid) {
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('chatContainer').style.display = 'flex';
+                document.getElementById('sessionTimer').textContent = `⏳ ${data.expires_in} qoldi`;
+                return true;
+            } else {
+                document.getElementById('loginContainer').style.display = 'block';
+                document.getElementById('chatContainer').style.display = 'none';
                 return false;
             }
+        } catch(e) {
+            console.log('Session tekshirishda xatolik:', e);
+            return false;
+        }
+    }
+    
+    // =======================
+    // LOGIN FUNKSIYALARI
+    // =======================
+    async function login() {
+        const password = document.getElementById('loginPassword').value;
+        const error = document.getElementById('loginError');
+        const info = document.getElementById('loginInfo');
+        
+        error.style.display = 'none';
+        info.style.display = 'none';
+        
+        if (!password) {
+            error.textContent = '❌ Parolni kiriting!';
+            error.style.display = 'block';
+            return;
         }
         
-        // =======================
-        // LOGIN FUNKSIYALARI
-        // =======================
-        async function login() {
-            const password = document.getElementById('loginPassword').value;
-            const error = document.getElementById('loginError');
-            const info = document.getElementById('loginInfo');
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: password })
+            });
             
-            error.style.display = 'none';
-            info.style.display = 'none';
+            const data = await response.json();
             
-            if (!password) {
-                error.textContent = '❌ Parolni kiriting!';
-                error.style.display = 'block';
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: password })
-                });
+            if (data.success) {
+                info.textContent = '✅ ' + data.message;
+                info.style.display = 'block';
                 
-                const data = await response.json();
-                
-                if (data.success) {
-                    info.textContent = '✅ ' + data.message;
-                    info.style.display = 'block';
-                    
-                    if (data.new_password) {
-                        info.textContent += `\n🔑 Yangi parol: ${data.new_password}`;
-                    }
-                    
-                    setTimeout(() => {
-                        checkSession();
-                        document.getElementById('chatInput').focus();
-                    }, 1000);
-                } else {
-                    error.textContent = data.error || '❌ Noto\'g\'ri parol!';
-                    error.style.display = 'block';
-                    document.getElementById('loginPassword').value = '';
-                    document.getElementById('loginPassword').focus();
+                if (data.new_password) {
+                    info.textContent += `\n🔑 Yangi parol: ${data.new_password}`;
                 }
-            } catch(e) {
-                error.textContent = '❌ Server bilan bog\'lanishda xatolik!';
-                error.style.display = 'block';
-            }
-        }
-        
-        function showCodePrompt() {
-            const userPass = prompt("🔑 Kodni olish uchun parolingizni kiriting:");
-            if (userPass === CORRECT_PASSWORD) {
-                alert("✅ Sizning kodingiz: ghpay10\n\nBu parol orqali tizimga kirasiz.");
-            } else if (userPass !== null) {
-                alert("❌ Noto'g'ri parol!");
-            }
-        }
-        
-        // =======================
-        // CHAT FUNKSIYALARI
-        // =======================
-        async function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const sendBtn = document.getElementById('sendBtn');
-            const msg = input.value.trim();
-            if (!msg) return;
-            
-            input.disabled = true;
-            sendBtn.disabled = true;
-            
-            addMessage(msg, 'user');
-            input.value = '';
-            
-            const typingId = showTyping();
-            
-            try {
-                const response = await getAIResponse(msg);
-                removeTyping(typingId);
                 
-                if (response.need_login) {
-                    addMessage(response.response, 'bot');
+                setTimeout(() => {
+                    checkSession();
+                    document.getElementById('chatInput').focus();
+                }, 1000);
+            } else {
+                error.textContent = data.error || '❌ Noto\'g\'ri parol!';
+                error.style.display = 'block';
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginPassword').focus();
+            }
+        } catch(e) {
+            error.textContent = '❌ Server bilan bog\'lanishda xatolik!';
+            error.style.display = 'block';
+        }
+    }
+    
+    function showCodePrompt() {
+        const userPass = prompt("🔑 Kodni olish uchun parolingizni kiriting:");
+        if (userPass === CORRECT_PASSWORD) {
+            alert("✅ Sizning kodingiz: ghpay10\n\nBu parol orqali tizimga kirasiz.");
+        } else if (userPass !== null) {
+            alert("❌ Noto'g'ri parol!");
+        }
+    }
+    
+    // =======================
+    // CHAT FUNKSIYALARI
+    // =======================
+    async function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const msg = input.value.trim();
+        if (!msg) return;
+        
+        input.disabled = true;
+        sendBtn.disabled = true;
+        
+        addMessage(msg, 'user');
+        input.value = '';
+        
+        const typingId = showTyping();
+        
+        try {
+            const result = await getAIResponse(msg);
+            removeTyping(typingId);
+            
+            // result object ekanligini tekshirish
+            if (typeof result === 'object' && result !== null) {
+                if (result.need_login) {
+                    addMessage(result.response, 'bot');
                     setTimeout(() => checkSession(), 2000);
+                } else if (result.response) {
+                    addMessage(result.response, 'bot');
                 } else {
-                    addMessage(response, 'bot');
+                    addMessage("❌ Javob olishda xatolik", 'bot');
                 }
-            } catch (error) {
-                removeTyping(typingId);
-                addMessage("❌ Xatolik yuz berdi: " + error.message, 'bot');
+            } else if (typeof result === 'string') {
+                addMessage(result, 'bot');
+            } else {
+                addMessage("❌ Javob olishda xatolik", 'bot');
             }
+        } catch (error) {
+            removeTyping(typingId);
+            addMessage("❌ Xatolik yuz berdi: " + error.message, 'bot');
+        }
+        
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+    }
+    
+    async function getAIResponse(message) {
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    message: message,
+                    user_id: user_id
+                })
+            });
+            const data = await response.json();
+            return data;  // object qaytadi
+        } catch (error) {
+            return { response: "❌ Server bilan bog'lanishda xatolik!" };
+        }
+    }
+    
+    // =======================
+    // PAROL YANGILASH
+    // =======================
+    async function refreshPassword() {
+        if (!confirm('⚠️ Parolni yangilashni xohlaysizmi?\n\nYangi parol bot orqali yuboriladi.')) return;
+        
+        try {
+            const response = await fetch('/api/refresh_password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user_id })
+            });
             
-            input.disabled = false;
-            sendBtn.disabled = false;
-            input.focus();
-        }
-        
-        async function getAIResponse(message) {
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        message: message,
-                        user_id: user_id
-                    })
-                });
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                return { response: "❌ Server bilan bog'lanishda xatolik!" };
-            }
-        }
-        
-        // =======================
-        // PAROL YANGILASH
-        // =======================
-        async function refreshPassword() {
-            if (!confirm('⚠️ Parolni yangilashni xohlaysizmi?\n\nYangi parol bot orqali yuboriladi.')) return;
+            const data = await response.json();
             
-            try {
-                const response = await fetch('/api/refresh_password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: user_id })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`✅ Parol yangilandi!\n\n🔑 Yangi parol: ${data.new_password}\n\n📌 Bot orqali yuborildi!`);
-                } else {
-                    alert(data.error || '❌ Xatolik!');
-                }
-            } catch(e) {
-                alert('❌ Xatolik!');
+            if (data.success) {
+                alert(`✅ Parol yangilandi!\n\n🔑 Yangi parol: ${data.new_password}\n\n📌 Bot orqali yuborildi!`);
+            } else {
+                alert(data.error || '❌ Xatolik!');
             }
+        } catch(e) {
+            alert('❌ Xatolik!');
         }
+    }
+    
+    // =======================
+    // CHIQISH
+    // =======================
+    async function logout() {
+        if (!confirm('⚠️ Chiqishni xohlaysizmi?')) return;
         
-        // =======================
-        // CHIQISH
-        // =======================
-        async function logout() {
-            if (!confirm('⚠️ Chiqishni xohlaysizmi?')) return;
-            
-            try {
-                await fetch('/api/logout', { method: 'POST' });
-                sessionStorage.clear();
-                checkSession();
-            } catch(e) {
-                console.log('Logout xatosi:', e);
-            }
-        }
-        
-        // =======================
-        // UI YORDAMCHI FUNKSIYALAR
-        // =======================
-        function addMessage(text, type) {
-            const container = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = `message ${type}`;
-            div.innerHTML = text.replace(/\n/g, '<br>');
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-        
-        function showTyping() {
-            const container = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = 'typing-indicator';
-            div.id = 'typing_' + Date.now();
-            div.innerHTML = '⏳ <span>●</span> <span>●</span> <span>●</span>';
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-            return div.id;
-        }
-        
-        function removeTyping(id) {
-            const el = document.getElementById(id);
-            if (el) el.remove();
-        }
-        
-        // =======================
-        // AUTOMATIK TEKSHIRISH
-        // =======================
-        // Har 60 soniyada session tekshirish
-        setInterval(checkSession, 60000);
-        
-        // Sayt yuklanganda session tekshirish
-        document.addEventListener('DOMContentLoaded', function() {
+        try {
+            await fetch('/api/logout', { method: 'POST' });
+            sessionStorage.clear();
             checkSession();
-        });
+        } catch(e) {
+            console.log('Logout xatosi:', e);
+        }
+    }
+    
+    // =======================
+    // UI YORDAMCHI FUNKSIYALAR
+    // =======================
+    function addMessage(text, type) {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
         
-        // Enter bilan yuborish
-        document.getElementById('chatInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
+        // text string ekanligini tekshirish
+        if (typeof text === 'string') {
+            div.innerHTML = text.replace(/\n/g, '<br>');
+        } else {
+            div.innerHTML = String(text);
+        }
         
-        // Login enter
-        document.getElementById('loginPassword').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                login();
-            }
-        });
-        
-        console.log('🚀 BotYarat sayti ishga tushdi!');
-        console.log('📌 Parol: ghpay10');
-        console.log('⏳ 24 soat davomida amal qiladi');
-    </script>
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function showTyping() {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = 'typing-indicator';
+        div.id = 'typing_' + Date.now();
+        div.innerHTML = '⏳ <span>●</span> <span>●</span> <span>●</span>';
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        return div.id;
+    }
+    
+    function removeTyping(id) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    }
+    
+    // =======================
+    // AUTOMATIK TEKSHIRISH
+    // =======================
+    setInterval(checkSession, 60000);
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        checkSession();
+    });
+    
+    document.getElementById('chatInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            login();
+        }
+    });
+    
+    console.log('🚀 BotYarat sayti ishga tushdi!');
+    console.log('📌 Parol: ghpay10');
+    console.log('⏳ 24 soat davomida amal qiladi');
+</script>
 </body>
-    </html>
+</html>
