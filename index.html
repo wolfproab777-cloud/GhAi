@@ -2,8 +2,10 @@
 <html lang="uz">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhAi - Yordamchi</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BotYarat - AI Yordamchi</title>
+    <!-- reCAPTCHA -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -14,16 +16,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
+            padding: 12px;
         }
         
         /* Login oynasi */
         #loginContainer {
             background: #1a1a2e;
-            padding: 50px 40px;
+            padding: 30px 24px;
             border-radius: 24px;
             border: 1px solid #2a2a4a;
-            max-width: 450px;
+            max-width: 420px;
             width: 100%;
             text-align: center;
             box-shadow: 0 20px 60px rgba(0,0,0,0.8);
@@ -32,21 +34,21 @@
         
         #loginContainer h1 {
             color: #fff;
-            font-size: 28px;
-            margin-bottom: 10px;
+            font-size: 26px;
+            margin-bottom: 8px;
         }
         
         #loginContainer h1 span { color: #7c3aed; }
         
-        #loginContainer p {
+        #loginContainer .subtitle {
             color: #888;
-            margin-bottom: 30px;
-            font-size: 14px;
+            margin-bottom: 24px;
+            font-size: 13px;
         }
         
         #loginContainer input {
             width: 100%;
-            padding: 14px 18px;
+            padding: 14px 16px;
             border-radius: 12px;
             border: 1px solid #333;
             background: #12121f;
@@ -54,7 +56,7 @@
             font-size: 16px;
             outline: none;
             transition: 0.3s;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
         
         #loginContainer input:focus { border-color: #7c3aed; }
@@ -68,9 +70,8 @@
             font-weight: 600;
             cursor: pointer;
             transition: 0.3s;
-            white-space: nowrap;
-            width: 100%;
             font-size: 16px;
+            width: 100%;
         }
         
         .btn:hover {
@@ -90,26 +91,59 @@
             color: #fff;
         }
         
+        .btn-success {
+            background: #22c55e;
+        }
+        
+        .btn-success:hover {
+            background: #16a34a;
+        }
+        
         #loginError {
             color: #ef4444;
             font-size: 13px;
-            margin-top: 12px;
+            margin-top: 10px;
             display: none;
         }
         
         #loginInfo {
             color: #4ade80;
             font-size: 13px;
-            margin-top: 12px;
+            margin-top: 10px;
             display: none;
         }
         
         .login-timer {
             color: #888;
             font-size: 12px;
-            margin-top: 20px;
+            margin-top: 16px;
             border-top: 1px solid #2a2a4a;
-            padding-top: 20px;
+            padding-top: 16px;
+        }
+        
+        .login-timer .time {
+            color: #a78bfa;
+            font-weight: 600;
+        }
+        
+        .login-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .login-actions .btn {
+            flex: 1;
+            min-width: 100px;
+            font-size: 14px;
+            padding: 12px 16px;
+        }
+        
+        .recaptcha-container {
+            margin: 12px 0;
+            display: flex;
+            justify-content: center;
         }
         
         /* Chat oynasi */
@@ -117,7 +151,8 @@
             display: none;
             width: 100%;
             max-width: 900px;
-            height: 90vh;
+            height: 92vh;
+            max-height: 800px;
             background: #1a1a2e;
             border-radius: 24px;
             border: 1px solid #2a2a4a;
@@ -127,18 +162,19 @@
         }
         
         .chat-header {
-            padding: 20px 30px;
+            padding: 16px 20px;
             border-bottom: 1px solid #2a2a4a;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
+            flex-shrink: 0;
         }
         
         .chat-header h2 {
             color: #fff;
-            font-size: 20px;
+            font-size: 18px;
         }
         
         .chat-header h2 span { color: #7c3aed; }
@@ -146,26 +182,27 @@
         .chat-header .badge {
             background: #7c3aed22;
             color: #a78bfa;
-            padding: 6px 14px;
+            padding: 4px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             border: 1px solid #7c3aed44;
         }
         
         .chat-header .header-buttons {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         .chat-header .header-buttons button {
             background: #7c3aed44;
             border: 1px solid #7c3aed66;
             color: #a78bfa;
-            padding: 6px 14px;
+            padding: 4px 12px;
             border-radius: 20px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             transition: 0.3s;
         }
         
@@ -176,21 +213,23 @@
         
         .chat-messages {
             flex: 1;
-            padding: 30px;
+            padding: 16px 20px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
             background: #12121f;
+            min-height: 0;
         }
         
         .message {
-            max-width: 80%;
-            padding: 14px 20px;
+            max-width: 85%;
+            padding: 12px 16px;
             border-radius: 16px;
-            font-size: 15px;
-            line-height: 1.6;
+            font-size: 14px;
+            line-height: 1.5;
             animation: fadeIn 0.3s ease;
+            word-wrap: break-word;
         }
         
         @keyframes fadeIn {
@@ -216,14 +255,15 @@
         .message.bot .highlight { color: #a78bfa; font-weight: 600; }
         .message.bot .code-block {
             background: #0a0a14;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-radius: 8px;
-            margin-top: 10px;
+            margin-top: 8px;
             font-family: 'Courier New', monospace;
-            font-size: 13px;
+            font-size: 12px;
             color: #4ade80;
             border: 1px solid #2a2a4a;
             word-break: break-all;
+            overflow-x: auto;
         }
         
         .typing-indicator {
@@ -248,16 +288,17 @@
         }
         
         .chat-input-area {
-            padding: 20px 30px;
+            padding: 12px 16px;
             border-top: 1px solid #2a2a4a;
             display: flex;
-            gap: 12px;
+            gap: 10px;
             background: #1a1a2e;
+            flex-shrink: 0;
         }
         
         .chat-input-area input {
             flex: 1;
-            padding: 14px 20px;
+            padding: 12px 16px;
             border-radius: 14px;
             border: 1px solid #333;
             background: #12121f;
@@ -265,25 +306,46 @@
             font-size: 15px;
             outline: none;
             transition: 0.3s;
+            min-width: 0;
         }
         
         .chat-input-area input:focus { border-color: #7c3aed; }
         .chat-input-area input:disabled { opacity: 0.5; cursor: not-allowed; }
+        .chat-input-area .btn {
+            padding: 12px 20px;
+            width: auto;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
         .chat-input-area .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar { width: 5px; }
         .chat-messages::-webkit-scrollbar-track { background: transparent; }
         .chat-messages::-webkit-scrollbar-thumb { background: #7c3aed55; border-radius: 10px; }
         
+        /* Responsive */
         @media (max-width: 600px) {
-            #loginContainer { padding: 30px 20px; }
-            .chat-header { flex-direction: column; align-items: flex-start; }
-            .chat-messages { padding: 16px; }
-            .message { max-width: 95%; font-size: 14px; padding: 12px 16px; }
-            .chat-input-area { padding: 16px; flex-wrap: wrap; }
-            .chat-input-area input { min-width: 100%; }
-            .login-input-group { flex-direction: column; }
-            .chat-header .header-buttons { width: 100%; justify-content: flex-start; }
+            #loginContainer { padding: 24px 16px; }
+            #loginContainer h1 { font-size: 22px; }
+            
+            .chat-header { padding: 12px 16px; }
+            .chat-header h2 { font-size: 16px; }
+            .chat-messages { padding: 12px 14px; }
+            .message { max-width: 92%; font-size: 13px; padding: 10px 14px; }
+            .chat-input-area { padding: 10px 12px; gap: 8px; }
+            .chat-input-area input { font-size: 14px; padding: 10px 14px; }
+            .chat-input-area .btn { padding: 10px 16px; font-size: 13px; }
+            
+            .login-actions .btn { font-size: 13px; padding: 10px 12px; min-width: 80px; }
+            .recaptcha-container { transform: scale(0.85); }
+            #chatContainer { height: 95vh; max-height: none; border-radius: 16px; }
+        }
+        
+        @media (max-width: 400px) {
+            #loginContainer { padding: 16px 12px; }
+            #loginContainer h1 { font-size: 20px; }
+            .login-actions { flex-direction: column; }
+            .login-actions .btn { min-width: 100%; }
         }
     </style>
 </head>
@@ -291,26 +353,33 @@
     <!-- ================= LOGIN OYNA ================= -->
     <div id="loginContainer">
         <h1>🔐 <span>Bot</span>Yarat</h1>
-        <p>Kirish uchun parolingizni kiriting</p>
+        <p class="subtitle">Kirish uchun parolingizni kiriting</p>
         
-        <input type="password" id="loginPassword" placeholder="Parolni kiriting..." onkeydown="if(event.key==='Enter') login()">
-        <button class="btn" onclick="login()">Kirish</button>
+        <input type="password" id="loginPassword" placeholder="Parolni kiriting..." onkeydown="if(event.key==='Enter') login()" autocomplete="off">
         
-        <div style="margin-top:12px;">
-            <button class="btn btn-secondary" onclick="showCodePrompt()">🔑 Kod olish</button>
+        <div class="recaptcha-container">
+            <div class="g-recaptcha" data-sitekey="YOUR_RECAPTCHA_SITE_KEY" data-callback="onRecaptchaSuccess"></div>
+        </div>
+        
+        <button class="btn" onclick="login()" id="loginBtn">Kirish</button>
+        
+        <div class="login-actions">
+            <button class="btn btn-secondary" onclick="getCodeFromBot()">🔑 Parol olish</button>
         </div>
         
         <div id="loginError">❌ Noto'g'ri parol!</div>
         <div id="loginInfo">✅ Kirish muvaffaqiyatli!</div>
         
-        <div class="login-timer" id="loginTimer">⏳ Parol 24 soat davomida amal qiladi</div>
+        <div class="login-timer">
+            ⏳ Parol <span class="time" id="loginTimer">24 soat</span> davomida amal qiladi
+        </div>
     </div>
     
     <!-- ================= CHAT OYNA ================= -->
     <div id="chatContainer">
         <div class="chat-header">
             <h2>🤖 <span>Bot</span>Yarat</h2>
-            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <span class="badge" id="sessionTimer">⏳ 24 soat qoldi</span>
                 <div class="header-buttons">
                     <button onclick="refreshPassword()">🔄 Yangilash</button>
@@ -333,261 +402,193 @@
         </div>
     </div>
 
-   <script>
-    // =======================
-    // KONFIGURATSIYA
-    // =======================
-    const CORRECT_PASSWORD = "ghpay10";
-    let user_id = 'unknown';
-    let target_id = null;
-    
-    // =======================
-    // SESSION TEKSHIRISH
-    // =======================
-    async function checkSession() {
-        try {
-            const response = await fetch('/api/check_session');
-            const data = await response.json();
-            
-            if (data.valid) {
-                document.getElementById('loginContainer').style.display = 'none';
-                document.getElementById('chatContainer').style.display = 'flex';
-                document.getElementById('sessionTimer').textContent = `⏳ ${data.expires_in} qoldi`;
-                return true;
-            } else {
-                document.getElementById('loginContainer').style.display = 'block';
-                document.getElementById('chatContainer').style.display = 'none';
+    <script>
+        // =======================
+        // KONFIGURATSIYA
+        // =======================
+        const CORRECT_PASSWORD = "ghpay10";
+        let user_id = 'unknown';
+        let target_id = null;
+        let recaptchaVerified = false;
+        let autoLoginTimer = null;
+        
+        // =======================
+        // SESSION TEKSHIRISH
+        // =======================
+        async function checkSession() {
+            try {
+                const response = await fetch('/api/check_session');
+                const data = await response.json();
+                
+                if (data.valid) {
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('chatContainer').style.display = 'flex';
+                    document.getElementById('sessionTimer').textContent = `⏳ ${data.expires_in} qoldi`;
+                    document.getElementById('loginTimer').textContent = data.expires_in;
+                    return true;
+                } else {
+                    document.getElementById('loginContainer').style.display = 'block';
+                    document.getElementById('chatContainer').style.display = 'none';
+                    return false;
+                }
+            } catch(e) {
+                console.log('Session tekshirishda xatolik:', e);
                 return false;
             }
-        } catch(e) {
-            console.log('Session tekshirishda xatolik:', e);
-            return false;
-        }
-    }
-    
-    // =======================
-    // LOGIN FUNKSIYALARI
-    // =======================
-    async function login() {
-        const password = document.getElementById('loginPassword').value;
-        const error = document.getElementById('loginError');
-        const info = document.getElementById('loginInfo');
-        
-        error.style.display = 'none';
-        info.style.display = 'none';
-        
-        if (!password) {
-            error.textContent = '❌ Parolni kiriting!';
-            error.style.display = 'block';
-            return;
         }
         
-        try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: password })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                info.textContent = '✅ ' + data.message;
-                info.style.display = 'block';
+        // =======================
+        // RECAPTCHA
+        // =======================
+        function onRecaptchaSuccess(token) {
+            recaptchaVerified = true;
+            document.getElementById('loginBtn').style.opacity = '1';
+            document.getElementById('loginBtn').style.cursor = 'pointer';
+        }
+        
+        // =======================
+        // PAROL OLISH (Telegram botga xabar)
+        // =======================
+        async function getCodeFromBot() {
+            try {
+                const response = await fetch('/api/request_password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 
-                if (data.new_password) {
-                    info.textContent += `\n🔑 Yangi parol: ${data.new_password}`;
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Parol so\'rovi yuborildi!\n\n📌 Telegram bot orqali parolingiz yuboriladi.');
+                } else {
+                    alert('❌ Xatolik: ' + (data.error || 'Noma\'lum xato'));
                 }
-                
-                setTimeout(() => {
-                    checkSession();
-                    document.getElementById('chatInput').focus();
-                }, 1000);
-            } else {
-                error.textContent = data.error || '❌ Noto\'g\'ri parol!';
-                error.style.display = 'block';
-                document.getElementById('loginPassword').value = '';
-                document.getElementById('loginPassword').focus();
+            } catch(e) {
+                alert('❌ Xatolik: ' + e.message);
             }
-        } catch(e) {
-            error.textContent = '❌ Server bilan bog\'lanishda xatolik!';
-            error.style.display = 'block';
         }
-    }
-    
-    function showCodePrompt() {
-        const userPass = prompt("🔑 Kodni olish uchun parolingizni kiriting:");
-        if (userPass === CORRECT_PASSWORD) {
-            alert("✅ Sizning kodingiz: ghpay10\n\nBu parol orqali tizimga kirasiz.");
-        } else if (userPass !== null) {
-            alert("❌ Noto'g'ri parol!");
-        }
-    }
-    
-    // =======================
-    // CHAT FUNKSIYALARI
-    // =======================
-    async function sendMessage() {
-        const input = document.getElementById('chatInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const msg = input.value.trim();
-        if (!msg) return;
         
-        input.disabled = true;
-        sendBtn.disabled = true;
-        
-        addMessage(msg, 'user');
-        input.value = '';
-        
-        const typingId = showTyping();
-        
-        try {
-            const result = await getAIResponse(msg);
-            removeTyping(typingId);
+        // =======================
+        // LOGIN FUNKSIYALARI
+        // =======================
+        async function login() {
+            const password = document.getElementById('loginPassword').value;
+            const error = document.getElementById('loginError');
+            const info = document.getElementById('loginInfo');
             
-            // result object ekanligini tekshirish
-            if (typeof result === 'object' && result !== null) {
-                if (result.need_login) {
-                    addMessage(result.response, 'bot');
-                    setTimeout(() => checkSession(), 2000);
-                } else if (result.response) {
-                    addMessage(result.response, 'bot');
+            error.style.display = 'none';
+            info.style.display = 'none';
+            
+            if (!password) {
+                error.textContent = '❌ Parolni kiriting!';
+                error.style.display = 'block';
+                return;
+            }
+            
+            if (!recaptchaVerified) {
+                error.textContent = '❌ Iltimos, "Men robot emasman" ni tasdiqlang!';
+                error.style.display = 'block';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        password: password,
+                        recaptcha: document.querySelector('.g-recaptcha-response').value
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    info.textContent = '✅ ' + data.message;
+                    info.style.display = 'block';
+                    
+                    if (data.new_password) {
+                        info.textContent += `\n🔑 Yangi parol: ${data.new_password}`;
+                        // Avtomatik yozish
+                        document.getElementById('loginPassword').value = data.new_password;
+                        
+                        // 2 soniyadan keyin avtomatik kirish
+                        autoLoginTimer = setTimeout(() => {
+                            document.getElementById('loginBtn').click();
+                        }, 2000);
+                    }
+                    
+                    setTimeout(() => {
+                        checkSession();
+                        document.getElementById('chatInput').focus();
+                    }, 1000);
+                } else {
+                    error.textContent = data.error || '❌ Noto\'g\'ri parol!';
+                    error.style.display = 'block';
+                    document.getElementById('loginPassword').value = '';
+                    document.getElementById('loginPassword').focus();
+                    recaptchaVerified = false;
+                    grecaptcha.reset();
+                }
+            } catch(e) {
+                error.textContent = '❌ Server bilan bog\'lanishda xatolik!';
+                error.style.display = 'block';
+            }
+        }
+        
+        // =======================
+        // CHAT FUNKSIYALARI
+        // =======================
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            input.disabled = true;
+            sendBtn.disabled = true;
+            
+            addMessage(msg, 'user');
+            input.value = '';
+            
+            const typingId = showTyping();
+            
+            try {
+                const result = await getAIResponse(msg);
+                removeTyping(typingId);
+                
+                if (typeof result === 'object' && result !== null) {
+                    if (result.need_login) {
+                        addMessage(result.response, 'bot');
+                        setTimeout(() => checkSession(), 2000);
+                    } else if (result.response) {
+                        addMessage(result.response, 'bot');
+                    } else {
+                        addMessage("❌ Javob olishda xatolik", 'bot');
+                    }
+                } else if (typeof result === 'string') {
+                    addMessage(result, 'bot');
                 } else {
                     addMessage("❌ Javob olishda xatolik", 'bot');
                 }
-            } else if (typeof result === 'string') {
-                addMessage(result, 'bot');
-            } else {
-                addMessage("❌ Javob olishda xatolik", 'bot');
+            } catch (error) {
+                removeTyping(typingId);
+                addMessage("❌ Xatolik yuz berdi: " + error.message, 'bot');
             }
-        } catch (error) {
-            removeTyping(typingId);
-            addMessage("❌ Xatolik yuz berdi: " + error.message, 'bot');
-        }
-        
-        input.disabled = false;
-        sendBtn.disabled = false;
-        input.focus();
-    }
-    
-    async function getAIResponse(message) {
-        try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    message: message,
-                    user_id: user_id
-                })
-            });
-            const data = await response.json();
-            return data;  // object qaytadi
-        } catch (error) {
-            return { response: "❌ Server bilan bog'lanishda xatolik!" };
-        }
-    }
-    
-    // =======================
-    // PAROL YANGILASH
-    // =======================
-    async function refreshPassword() {
-        if (!confirm('⚠️ Parolni yangilashni xohlaysizmi?\n\nYangi parol bot orqali yuboriladi.')) return;
-        
-        try {
-            const response = await fetch('/api/refresh_password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: user_id })
-            });
             
-            const data = await response.json();
-            
-            if (data.success) {
-                alert(`✅ Parol yangilandi!\n\n🔑 Yangi parol: ${data.new_password}\n\n📌 Bot orqali yuborildi!`);
-            } else {
-                alert(data.error || '❌ Xatolik!');
-            }
-        } catch(e) {
-            alert('❌ Xatolik!');
-        }
-    }
-    
-    // =======================
-    // CHIQISH
-    // =======================
-    async function logout() {
-        if (!confirm('⚠️ Chiqishni xohlaysizmi?')) return;
-        
-        try {
-            await fetch('/api/logout', { method: 'POST' });
-            sessionStorage.clear();
-            checkSession();
-        } catch(e) {
-            console.log('Logout xatosi:', e);
-        }
-    }
-    
-    // =======================
-    // UI YORDAMCHI FUNKSIYALAR
-    // =======================
-    function addMessage(text, type) {
-        const container = document.getElementById('chatMessages');
-        const div = document.createElement('div');
-        div.className = `message ${type}`;
-        
-        // text string ekanligini tekshirish
-        if (typeof text === 'string') {
-            div.innerHTML = text.replace(/\n/g, '<br>');
-        } else {
-            div.innerHTML = String(text);
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
         }
         
-        container.appendChild(div);
-        container.scrollTop = container.scrollHeight;
-    }
-    
-    function showTyping() {
-        const container = document.getElementById('chatMessages');
-        const div = document.createElement('div');
-        div.className = 'typing-indicator';
-        div.id = 'typing_' + Date.now();
-        div.innerHTML = '⏳ <span>●</span> <span>●</span> <span>●</span>';
-        container.appendChild(div);
-        container.scrollTop = container.scrollHeight;
-        return div.id;
-    }
-    
-    function removeTyping(id) {
-        const el = document.getElementById(id);
-        if (el) el.remove();
-    }
-    
-    // =======================
-    // AUTOMATIK TEKSHIRISH
-    // =======================
-    setInterval(checkSession, 60000);
-    
-    document.addEventListener('DOMContentLoaded', function() {
-        checkSession();
-    });
-    
-    document.getElementById('chatInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-    
-    document.getElementById('loginPassword').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            login();
-        }
-    });
-    
-    console.log('🚀 BotYarat sayti ishga tushdi!');
-    console.log('📌 Parol: ghpay10');
-    console.log('⏳ 24 soat davomida amal qiladi');
-</script>
-</body>
-</html>
+        async function getAIResponse(message) {
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: message,
+                        user_id: user_id
+                    })
+                
+                
