@@ -16,7 +16,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import time
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24))
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 Session(app)
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # =======================
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_USER_ID = os.getenv("ADMIN_USER_ID", "YOUR_TELEGRAM_ID")
+RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY")
 MASTER_PASSWORD = "ghpay10"
 
 # Bot holati
@@ -110,6 +111,35 @@ def check_password_expiry():
     if datetime.now() >= expires_at:
         return rotate_password()
     return password_data['current_password']
+
+# =======================
+# RECAPTCHA
+# =======================
+
+def verify_recaptcha(recaptcha_response):
+    """reCAPTCHA ni tekshirish"""
+    try:
+        if not recaptcha_response:
+            return False
+        
+        if not RECAPTCHA_SECRET_KEY:
+            # Agar Secret Key bo'lmasa, tekshirmasdan o'tkaz
+            logger.warning("⚠️ RECAPTCHA_SECRET_KEY topilmadi!")
+            return True
+        
+        url = "https://www.google.com/recaptcha/api/siteverify"
+        data = {
+            "secret": RECAPTCHA_SECRET_KEY,
+            "response": recaptcha_response
+        }
+        
+        response = requests.post(url, data=data, timeout=5)
+        result = response.json()
+        
+        return result.get('success', False)
+    except Exception as e:
+        logger.error(f"reCAPTCHA xatosi: {e}")
+        return False
 
 # =======================
 # TELEGRAM FUNKSIYALARI
@@ -241,6 +271,14 @@ def login():
     try:
         data = request.json
         password = data.get('password', '')
+        recaptcha = data.get('recaptcha', '')
+        
+        # reCAPTCHA tekshirish
+        if not verify_recaptcha(recaptcha):
+            return jsonify({
+                "success": False,
+                "error": "❌ Iltimos, 'Men robot emasman' ni tasdiqlang!"
+            })
         
         current_password = get_current_password()
         
