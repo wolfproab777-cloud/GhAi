@@ -5,14 +5,19 @@ import logging
 import asyncio
 import threading
 import json
-import hashlib
 import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
-from flask import Flask, send_file, request, jsonify, session
+from flask import Flask, send_file, request, jsonify, session, redirect, url_for
 from flask_cors import CORS
 from flask_session import Session
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from google_auth_oauthlib.flow import Flow
+from google.oauth2 import id_token
+from google.auth.transport.requests import Request as GoogleRequest
 import time
 
 app = Flask(__name__)
@@ -30,8 +35,16 @@ logger = logging.getLogger(__name__)
 # =======================
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_USER_ID = os.getenv("ADMIN_USER_ID", "YOUR_TELEGRAM_ID")
-RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY")
 MASTER_PASSWORD = "ghpay10"
+
+# Google OAuth
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://ghai.onrender.com/oauth2callback")
+
+# Gmail
+GMAIL_EMAIL = os.getenv("GMAIL_EMAIL")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
 # Bot holati
 bot_app = None
@@ -40,6 +53,7 @@ bot_running = False
 # Ma'lumotlar bazasi
 DATA_FILE = 'data.json'
 PASSWORD_FILE = 'password_data.json'
+VERIFICATION_FILE = 'verification_data.json'
 
 # =======================
 # MA'LUMOTLAR BAZASI
@@ -78,6 +92,20 @@ def save_password_data(data):
     with open(PASSWORD_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
+def load_verification_data():
+    try:
+        with open(VERIFICATION_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {
+            "codes": {},
+            "verified_emails": []
+        }
+
+def save_verification_data(data):
+    with open(VERIFICATION_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
 def get_current_password():
     data = load_password_data()
     expires_at = datetime.fromisoformat(data['expires_at'])
@@ -113,36 +141,76 @@ def check_password_expiry():
     return password_data['current_password']
 
 # =======================
-# RECAPTCHA
+# GMAIL VERIFICATION
 # =======================
 
-def verify_recaptcha(recaptcha_response):
-    """reCAPTCHA v3 ni tekshirish"""
+def generate_verification_code():
+    return ''.join(random.choices(string.digits, k=6))
+
+def send_verification_email(email, code):
     try:
-        if not recaptcha_response:
+        if not GMAIL_EMAIL or not GMAIL_APP_PASSWORD:
+            logger.warning("Gmail sozlamalari topilmadi!")
             return False
         
-        RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY")
-        if not RECAPTCHA_SECRET_KEY:
-            return True
+        msg = MIMEMultipart()
+        msg['From'] = GMAIL_EMAIL
+        msg['To'] = email
+        msg['Subject'] = "GhAi - Tasdiqlash kodi"
         
-        url = "https://www.google.com/recaptcha/api/siteverify"
-        data = {
-            "secret": RECAPTCHA_SECRET_KEY,
-            "response": recaptcha_response
-        }
+        body = f"""
+        <html>
+        <body>
+            <h2>🔐 GhAi - Tasdiqlash kodi</h2>
+            <p>Sizning tasdiqlash kodingiz:</p>
+            <h1 style="color: #7c3aed; font-size: 32px; letter-spacing: 4px;">{code}</h1>
+            <p>Bu kod <b>5 daqiqa</b> davomida amal qiladi.</p>
+        </body>
+        </html>
+        """
         
-        response = requests.post(url, data=data, timeout=5)
-        result = response.json()
+        msg.attach(MIMEText(body, 'html'))
         
-        # v3 da score ni tekshirish (0.5 dan yuqori bo'lsa yaxshi)
-        if result.get('success') and result.get('score', 0) >= 0.5:
-            return True
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
         
-        return False
+        logger.info(f"✅ Tasdiqlash kodi {email} ga yuborildi")
+        return True
     except Exception as e:
-        logger.error(f"reCAPTCHA xatosi: {e}")
+        logger.error(f"Email xatosi: {e}")
         return False
+
+def save_verification_code(email, code):
+    data = load_verification_data()
+    now = datetime.now()
+    data['codes'][email] = {
+        "code": code,
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=5)).isoformat(),
+        "verified": False
+    }
+    save_verification_data(data)
+
+def verify_code(email, code):
+    data = load_verification_data()
+    if email not in data['codes']:
+        return False, "❌ Bu email uchun kod topilmadi!"
+    
+    code_data = data['codes'][email]
+    expires_at = datetime.fromisoformat(code_data['expires_at'])
+    if datetime.now() > expires_at:
+        return False, "❌ Kod muddati tugagan!"
+    
+    if code_data['code'] == code:
+        data['codes'][email]['verified'] = True
+        data['verified_emails'].append(email)
+        save_verification_data(data)
+        return True, "✅ Email tasdiqlandi!"
+    
+    return False, "❌ Noto'g'ri kod!"
 
 # =======================
 # TELEGRAM FUNKSIYALARI
@@ -159,7 +227,6 @@ def send_telegram_message(user_id, text):
             "text": text,
             "parse_mode": "HTML"
         }
-        
         response = requests.post(url, json=payload, timeout=10)
         
         if response.status_code == 200:
@@ -172,39 +239,35 @@ def send_telegram_message(user_id, text):
 def send_password_to_admin(password):
     try:
         if not TELEGRAM_BOT_TOKEN or not ADMIN_USER_ID:
-            logger.warning("Admin ID topilmadi")
             return {"success": False, "error": "Admin ID topilmadi"}
         
         message = f"""🔐 **Yangi parol yaratildi!**
 
 🔑 Parol: <code>{password}</code>
 📅 Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-⏳ Amal qilish: 24 soat
-
-📌 Bu parol faqat sizga yuborildi.
-Foydalanuvchilar "Parol olish" tugmasi orqali o'zlariga olishlari mumkin."""
-
+⏳ Amal qilish: 24 soat"""
         return send_telegram_message(ADMIN_USER_ID, message)
     except Exception as e:
-        logger.error(f"Admin xatosi: {e}")
         return {"success": False, "error": str(e)}
 
-def send_password_to_user(user_id, password):
-    try:
-        if not TELEGRAM_BOT_TOKEN:
-            return {"success": False, "error": "Bot tokeni topilmadi"}
-        
-        message = f"""🔑 **Sizning parolingiz!**
+# =======================
+# GOOGLE OAUTH
+# =======================
 
-🔐 Parol: <code>{password}</code>
-⏳ Amal qilish: 24 soat
-
-📌 Saytga kirish uchun ushbu paroldan foydalaning."""
-
-        return send_telegram_message(user_id, message)
-    except Exception as e:
-        logger.error(f"Foydalanuvchiga yuborish xatosi: {e}")
-        return {"success": False, "error": str(e)}
+def get_google_flow():
+    """Google OAuth flow yaratish"""
+    return Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GOOGLE_REDIRECT_URI]
+            }
+        },
+        scopes=["openid", "email", "profile"]
+    )
 
 # =======================
 # SESSION FUNKSIYALARI
@@ -269,33 +332,164 @@ def check_session():
             "message": "Session expired. Please login again."
         })
 
+@app.route('/login/google')
+def google_login():
+    """Google login sahifasiga o'tish"""
+    try:
+        flow = get_google_flow()
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true'
+        )
+        session['oauth_state'] = state
+        return redirect(authorization_url)
+    except Exception as e:
+        logger.error(f"Google login xatosi: {e}")
+        return f"❌ Xatolik: {str(e)}"
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    """Google dan qaytish"""
+    try:
+        flow = get_google_flow()
+        flow.fetch_token(authorization_response=request.url)
+        
+        credentials = flow.credentials
+        
+        # ID token ni tekshirish
+        request_adapter = GoogleRequest()
+        id_info = id_token.verify_oauth2_token(
+            credentials._id_token,
+            request_adapter,
+            GOOGLE_CLIENT_ID
+        )
+        
+        user_email = id_info.get('email')
+        user_name = id_info.get('name')
+        user_picture = id_info.get('picture', '')
+        
+        # Foydalanuvchini saqlash
+        db = load_data()
+        if user_email not in db['users']:
+            db['users'][user_email] = {
+                "name": user_name,
+                "email": user_email,
+                "picture": user_picture,
+                "created_at": datetime.now().isoformat()
+            }
+            save_data(db)
+        
+        # Session yaratish
+        create_session()
+        session['user_email'] = user_email
+        session['user_name'] = user_name
+        session['user_picture'] = user_picture
+        
+        return redirect('/')
+        
+    except Exception as e:
+        logger.error(f"OAuth callback xatosi: {e}")
+        return f"❌ Xatolik: {str(e)}"
+
+@app.route('/api/send_verification', methods=['POST'])
+def send_verification():
+    try:
+        data = request.json
+        email = data.get('email', '').strip()
+        
+        if not email:
+            return jsonify({"success": False, "error": "Email manzilini kiriting!"})
+        
+        if '@' not in email or '.' not in email:
+            return jsonify({"success": False, "error": "Noto'g'ri email format!"})
+        
+        code = generate_verification_code()
+        save_verification_code(email, code)
+        
+        if send_verification_email(email, code):
+            return jsonify({
+                "success": True,
+                "message": "✅ Tasdiqlash kodi emailga yuborildi!"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "❌ Email yuborishda xatolik!"
+            })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/verify_code', methods=['POST'])
+def verify_code_route():
+    try:
+        data = request.json
+        email = data.get('email', '').strip()
+        code = data.get('code', '').strip()
+        
+        if not email or not code:
+            return jsonify({"success": False, "error": "Email va kod kerak!"})
+        
+        success, message = verify_code(email, code)
+        
+        if success:
+            create_session()
+            return jsonify({
+                "success": True,
+                "message": message
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": message
+            })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
         data = request.json
         password = data.get('password', '')
-        recaptcha = data.get('recaptcha', '')
-        
-        # reCAPTCHA tekshirish
-        if not verify_recaptcha(recaptcha):
-            return jsonify({
-                "success": False,
-                "error": "❌ Iltimos, 'Men robot emasman' ni tasdiqlang!"
-            })
+        email = data.get('email', '').strip()
         
         current_password = get_current_password()
         
-        if password == current_password:
+        if password != current_password:
+            return jsonify({
+                "success": False,
+                "error": "❌ Noto'g'ri parol!"
+            })
+        
+        if not email:
+            return jsonify({
+                "success": True,
+                "need_verification": True,
+                "message": "✅ Parol to'g'ri! Email manzilingizni kiriting."
+            })
+        
+        # Email tasdiqlanganmi tekshirish
+        if email in load_verification_data()['verified_emails']:
             create_session()
             return jsonify({
                 "success": True,
                 "message": "✅ Kirish muvaffaqiyatli!",
                 "expires_in": "24 soat"
             })
+        
+        code = generate_verification_code()
+        save_verification_code(email, code)
+        
+        if send_verification_email(email, code):
+            return jsonify({
+                "success": True,
+                "need_verification": True,
+                "message": "✅ Tasdiqlash kodi emailga yuborildi!",
+                "email": email
+            })
         else:
             return jsonify({
                 "success": False,
-                "error": "❌ Noto'g'ri parol!"
+                "error": "❌ Email yuborishda xatolik!"
             })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
@@ -310,7 +504,7 @@ def request_password():
             return jsonify({"success": False, "error": "ID kerak"})
         
         current_password = get_current_password()
-        result = send_password_to_user(user_id, current_password)
+        result = send_telegram_message(user_id, f"🔑 Parolingiz: <code>{current_password}</code>")
         
         if result['success']:
             return jsonify({
@@ -382,45 +576,11 @@ def process_message(message, user_id='unknown'):
     
     if 'parol' in msg or 'password' in msg:
         current_password = get_current_password()
-        result = send_password_to_user(user_id, current_password)
+        result = send_telegram_message(user_id, f"🔑 Parolingiz: <code>{current_password}</code>")
         if result['success']:
-            return "🔑 **Parol Telegram bot orqali yuborildi!**\n\n📌 Telegramni tekshiring."
+            return "🔑 **Parol Telegram bot orqali yuborildi!**"
         else:
             return f"❌ Xatolik: {result.get('error', 'Noma\'lum xato')}"
-    
-    if msg == 'yoz' or msg == 'yozish':
-        return """✍️ **Xabar yozish**
-
-📌 Kimga xabar yozmoqchisiz?
-Telegram ID sini yozing:
-
-`id: 123456789`"""
-    
-    if msg.startswith('id:'):
-        global target_id
-        try:
-            target_id = msg.replace('id:', '').strip()
-            return f"""📝 **{target_id} ga xabar yozish**
-
-✏️ Xabar matnini yozing:
-
-`xabar: Sizning matningiz`"""
-        except:
-            return "❌ Noto'g'ri format!"
-    
-    if msg.startswith('xabar:'):
-        try:
-            text = message.replace('xabar:', '').strip()
-            if target_id:
-                result = send_telegram_message(target_id, text)
-                if result['success']:
-                    return f"✅ **Xabar yuborildi!**\n\n📤 Kimga: {target_id}\n📝 Matn: {text}"
-                else:
-                    return f"❌ Xatolik: {result.get('error')}"
-            else:
-                return "❌ Avval ID ni tanlang! `id: 123456789`"
-        except:
-            return "❌ Xatolik!"
     
     if 'bot yarat' in msg or 'bot yasash' in msg:
         return """🤖 Bot yaratish uchun:
@@ -448,29 +608,25 @@ Telegram ID sini yozing:
             return "❌ Xatolik!"
     
     if 'salom' in msg or 'assalom' in msg:
-        return "👋 Salom! GhAi yordamchisiman.\n\n📌 **Buyruqlar:**\n• `yoz` - xabar yozish\n• `parol` - parol olish\n• `bot yarat` - bot yaratish"
+        return "👋 Salom! GhAi yordamchisiman.\n\n📌 **Buyruqlar:**\n• `parol` - parol olish\n• `bot yarat` - bot yaratish"
     
     if 'yordam' in msg or 'help' in msg:
         return """🤖 **GhAi yordamchisi**
 
 📌 **Buyruqlar:**
-• `yoz` - boshqa odamga xabar yozish
 • `parol` - parol olish
 • `bot yarat` - bot yaratish
 • `salom` - salomlashish
-• `yordam` - bu yordam
-
-⚡ Gemini usulida ishlaydi!"""
+• `yordam` - bu yordam"""
     
     return "🤔 Tushunmadim.\n\n📌 **'yordam'** deb yozing."
 
 # =======================
-# TELEGRAM BOT HANDLERLARI
+# TELEGRAM BOT
 # =======================
 
 async def telegram_start(update: Update, context):
     user_id = str(update.message.from_user.id)
-    
     db = load_data()
     if user_id not in db['users']:
         db['users'][user_id] = {
@@ -484,7 +640,6 @@ async def telegram_start(update: Update, context):
     await update.message.reply_text(
         "👋 Salom! Men GhAi yordamchisiman!\n\n"
         "📌 **Buyruqlar:**\n"
-        "• `yoz` - boshqa odamga xabar yozish\n"
         "• `parol` - parol olish\n"
         "• `bot yarat` - bot yaratish\n"
         "• `yordam` - yordam",
@@ -498,21 +653,14 @@ async def telegram_handle_message(update: Update, context):
     response = process_message(user_message, user_id)
     await update.message.reply_text(response, parse_mode='HTML')
 
-# =======================
-# BOTNI ISHGA TUSHIRISH
-# =======================
-
 def start_telegram_bot():
     global bot_app, bot_running
-    
     if bot_running:
         return
-    
     try:
         if not TELEGRAM_BOT_TOKEN:
             logger.warning("⚠️ TELEGRAM_BOT_TOKEN topilmadi!")
             return
-        
         bot_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
         bot_app.add_handler(CommandHandler("start", telegram_start))
         bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_handle_message))
