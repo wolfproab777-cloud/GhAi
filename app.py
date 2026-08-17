@@ -62,7 +62,6 @@ def save_data(data):
         json.dump(data, f, indent=2)
 
 def load_password_data():
-    """Parol ma'lumotlarini yuklash"""
     try:
         with open(PASSWORD_FILE, 'r') as f:
             return json.load(f)
@@ -79,22 +78,15 @@ def save_password_data(data):
         json.dump(data, f, indent=2)
 
 def get_current_password():
-    """Hozirgi amaldagi parolni olish"""
     data = load_password_data()
     expires_at = datetime.fromisoformat(data['expires_at'])
-    
-    # Agar parol muddati tugagan bo'lsa, yangi parol yaratish
     if datetime.now() >= expires_at:
         return rotate_password()
-    
     return data['current_password']
 
 def rotate_password():
-    """Yangi parol yaratish (24 soatda bir marta)"""
-    # Yangi parol yaratish
     new_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
     
-    # Eski parolni saqlash
     password_data = load_password_data()
     password_data['history'].append({
         "password": password_data['current_password'],
@@ -102,25 +94,19 @@ def rotate_password():
         "expired_at": datetime.now().isoformat()
     })
     
-    # Yangi parolni o'rnatish
     now = datetime.now()
     password_data['current_password'] = new_password
     password_data['created_at'] = now.isoformat()
     password_data['expires_at'] = (now + timedelta(hours=24)).isoformat()
     save_password_data(password_data)
     
-    # Admin (siz) ga yangi parolni yuborish
     send_password_to_admin(new_password)
-    
     logger.info(f"🔄 Parol yangilandi: {new_password}")
-    
     return new_password
 
 def check_password_expiry():
-    """Parol muddatini tekshirish va kerak bo'lsa yangilash"""
     password_data = load_password_data()
     expires_at = datetime.fromisoformat(password_data['expires_at'])
-    
     if datetime.now() >= expires_at:
         return rotate_password()
     return password_data['current_password']
@@ -151,7 +137,6 @@ def send_telegram_message(user_id, text):
         return {"success": False, "error": str(e)}
 
 def send_password_to_admin(password):
-    """Yangi parolni faqat admin (siz) ga yuborish"""
     try:
         if not TELEGRAM_BOT_TOKEN or not ADMIN_USER_ID:
             logger.warning("Admin ID topilmadi")
@@ -167,13 +152,11 @@ def send_password_to_admin(password):
 Foydalanuvchilar "Parol olish" tugmasi orqali o'zlariga olishlari mumkin."""
 
         return send_telegram_message(ADMIN_USER_ID, message)
-        
     except Exception as e:
         logger.error(f"Admin xatosi: {e}")
         return {"success": False, "error": str(e)}
 
 def send_password_to_user(user_id, password):
-    """Parolni faqat bir foydalanuvchiga yuborish"""
     try:
         if not TELEGRAM_BOT_TOKEN:
             return {"success": False, "error": "Bot tokeni topilmadi"}
@@ -186,7 +169,6 @@ def send_password_to_user(user_id, password):
 📌 Saytga kirish uchun ushbu paroldan foydalaning."""
 
         return send_telegram_message(user_id, message)
-        
     except Exception as e:
         logger.error(f"Foydalanuvchiga yuborish xatosi: {e}")
         return {"success": False, "error": str(e)}
@@ -232,9 +214,7 @@ def get_session_expiry():
 @app.route('/')
 def index():
     try:
-        # Parol muddatini tekshirish
         check_password_expiry()
-        
         if is_session_valid():
             return send_file('index.html')
         else:
@@ -262,12 +242,10 @@ def login():
         data = request.json
         password = data.get('password', '')
         
-        # Hozirgi amaldagi parolni olish
         current_password = get_current_password()
         
         if password == current_password:
             create_session()
-            
             return jsonify({
                 "success": True,
                 "message": "✅ Kirish muvaffaqiyatli!",
@@ -283,7 +261,6 @@ def login():
 
 @app.route('/api/request_password', methods=['POST'])
 def request_password():
-    """Foydalanuvchi o'ziga parol so'rash"""
     try:
         data = request.json
         user_id = data.get('user_id', '')
@@ -291,10 +268,7 @@ def request_password():
         if not user_id:
             return jsonify({"success": False, "error": "ID kerak"})
         
-        # Hozirgi parolni olish
         current_password = get_current_password()
-        
-        # Foydalanuvchiga parolni yuborish
         result = send_password_to_user(user_id, current_password)
         
         if result['success']:
@@ -312,21 +286,17 @@ def request_password():
 
 @app.route('/api/refresh_password', methods=['POST'])
 def refresh_password():
-    """Parolni qo'lda yangilash (faqat admin)"""
     try:
         data = request.json
         user_id = data.get('user_id', '')
         
-        # Faqat admin yangilay oladi
         if user_id != ADMIN_USER_ID:
             return jsonify({
                 "success": False,
                 "error": "❌ Ruxsat yo'q! Faqat admin yangilay oladi."
             })
         
-        # Yangi parol yaratish
         new_password = rotate_password()
-        
         return jsonify({
             "success": True,
             "new_password": new_password,
@@ -369,17 +339,14 @@ def logout():
 def process_message(message, user_id='unknown'):
     msg = message.lower().strip()
     
-    # Parol olish (chatda)
     if 'parol' in msg or 'password' in msg:
         current_password = get_current_password()
         result = send_password_to_user(user_id, current_password)
-        
         if result['success']:
             return "🔑 **Parol Telegram bot orqali yuborildi!**\n\n📌 Telegramni tekshiring."
         else:
             return f"❌ Xatolik: {result.get('error', 'Noma\'lum xato')}"
     
-    # Yozish
     if msg == 'yoz' or msg == 'yozish':
         return """✍️ **Xabar yozish**
 
@@ -414,7 +381,6 @@ Telegram ID sini yozing:
         except:
             return "❌ Xatolik!"
     
-    # Bot yaratish
     if 'bot yarat' in msg or 'bot yasash' in msg:
         return """🤖 Bot yaratish uchun:
 
@@ -440,13 +406,11 @@ Telegram ID sini yozing:
         except:
             return "❌ Xatolik!"
     
-    # Salom
     if 'salom' in msg or 'assalom' in msg:
-        return "👋 Salom! Bot yaratish va xabar yuborishga yordam beraman.\n\n📌 **Buyruqlar:**\n• `yoz` - xabar yozish\n• `parol` - parol olish\n• `bot yarat` - bot yaratish"
+        return "👋 Salom! GhAi yordamchisiman.\n\n📌 **Buyruqlar:**\n• `yoz` - xabar yozish\n• `parol` - parol olish\n• `bot yarat` - bot yaratish"
     
-    # Yordam
     if 'yordam' in msg or 'help' in msg:
-        return """🤖 **BotYarat yordamchisi**
+        return """🤖 **GhAi yordamchisi**
 
 📌 **Buyruqlar:**
 • `yoz` - boshqa odamga xabar yozish
@@ -477,7 +441,7 @@ async def telegram_start(update: Update, context):
         save_data(db)
     
     await update.message.reply_text(
-        "👋 Salom! Men BotYarat yordamchisiman!\n\n"
+        "👋 Salom! Men GhAi yordamchisiman!\n\n"
         "📌 **Buyruqlar:**\n"
         "• `yoz` - boshqa odamga xabar yozish\n"
         "• `parol` - parol olish\n"
@@ -489,9 +453,7 @@ async def telegram_start(update: Update, context):
 async def telegram_handle_message(update: Update, context):
     user_id = str(update.message.from_user.id)
     user_message = update.message.text
-    
     logger.info(f"Telegram xabar: {user_id} -> {user_message}")
-    
     response = process_message(user_message, user_id)
     await update.message.reply_text(response, parse_mode='HTML')
 
@@ -511,7 +473,6 @@ def start_telegram_bot():
             return
         
         bot_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-        
         bot_app.add_handler(CommandHandler("start", telegram_start))
         bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_handle_message))
         
@@ -521,10 +482,8 @@ def start_telegram_bot():
         
         thread = threading.Thread(target=run_bot, daemon=True)
         thread.start()
-        
         bot_running = True
         logger.info("✅ Telegram bot ishga tushdi!")
-        
     except Exception as e:
         logger.error(f"❌ Bot xatosi: {e}")
 
@@ -533,9 +492,7 @@ def start_telegram_bot():
 # =======================
 
 if __name__ == '__main__':
-    # Dastlabki parolni yaratish
     check_password_expiry()
-    
     start_telegram_bot()
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
